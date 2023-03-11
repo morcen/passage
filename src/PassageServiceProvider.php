@@ -2,9 +2,9 @@
 
 namespace Morcen\Passage;
 
+use Morcen\Passage\Commands\PassageCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Morcen\Passage\Commands\PassageCommand;
 
 class PassageServiceProvider extends PackageServiceProvider
 {
