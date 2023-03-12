@@ -16,10 +16,6 @@ class PassageController extends Controller
 
     protected array $headers = [];
 
-    /**
-     * @param  Request  $request
-     * @return JsonResponse
-     */
     public function index(Request $request): JsonResponse
     {
         $uriParts = explode(self::URL_SEPARATOR, $request->path());
@@ -32,15 +28,10 @@ class PassageController extends Controller
                 return $this->callService($request, Http::$serviceName(), $uri);
             }
         }
+
         return response()->json(['error' => 'Route not found'], ResponseCode::HTTP_NOT_FOUND);
     }
 
-    /**
-     * @param  Request  $request
-     * @param  PendingRequest  $service
-     * @param  string  $uri
-     * @return JsonResponse
-     */
     protected function callService(Request $request, PendingRequest $service, string $uri): JsonResponse
     {
         // TODO: prepare headers

@@ -4,10 +4,10 @@ namespace Morcen\Passage;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Commands\PassageCommand;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Morcen\Passage\Commands\PassageCommand;
 
 class PassageServiceProvider extends PackageServiceProvider
 {
@@ -33,8 +33,8 @@ class PassageServiceProvider extends PackageServiceProvider
         });
 
         $services = config('passage');
-        foreach($services as $service => $config) {
-            Http::macro($service, fn() => Http::baseUrl($config['to']));
+        foreach ($services as $service => $config) {
+            Http::macro($service, fn () => Http::baseUrl($config['to']));
         }
     }
 }
