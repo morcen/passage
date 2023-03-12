@@ -2,9 +2,12 @@
 
 namespace Morcen\Passage;
 
-use Morcen\Passage\Commands\PassageCommand;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Http\Controllers\PassageController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Morcen\Passage\Commands\PassageCommand;
 
 class PassageServiceProvider extends PackageServiceProvider
 {
@@ -21,5 +24,17 @@ class PassageServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->hasMigration('create_passage_table')
             ->hasCommand(PassageCommand::class);
+    }
+
+    public function packageBooted()
+    {
+        Route::macro('passage', function () {
+            Route::any('{any}', [PassageController::class, 'index'])->where('any', '.*');
+        });
+
+        $services = config('passage');
+        foreach($services as $service => $config) {
+            Http::macro($service, fn() => Http::baseUrl($config['to']));
+        }
     }
 }
