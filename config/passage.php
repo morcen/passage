@@ -24,5 +24,31 @@
  * https://api.github.com/users/morcen and the response will be returned as your app's response.
  */
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Passage Master Switch
+    |--------------------------------------------------------------------------
+    |
+    | This option may be used to disable Passage without the need to remove
+    | `Route::passage()` in routes/web.php. This can be a very handy option
+    | especially when troubleshooting something that is route-related, to
+    | ensure that Passage is not the cause.
+    |
+    */
 
+    'enabled' => env('PASSAGE_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Passage Route Proxies
+    |--------------------------------------------------------------------------
+    |
+    | This option is a key-pair values of services and their configuration.
+    | A service is the first word in the URI, and the rest of the word will
+    | be forwarded to the new URL
+    |
+    */
+    'services' => [
+
+    ],
 ];

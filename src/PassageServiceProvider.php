@@ -20,22 +20,25 @@ class PassageServiceProvider extends PackageServiceProvider
          */
         $package
             ->name('passage')
-            ->hasConfigFile()
 //            ->hasViews()
 //            ->hasMigration('create_passage_table')
 //            ->hasCommand(PassageCommand::class)
-;
+            ->hasConfigFile();
     }
 
     public function packageBooted()
     {
-        Route::macro('passage', function () {
-            Route::any('{any?}', [PassageController::class, 'index'])->where('any', '.*');
-        });
+        $passage = config('passage');
 
-        $services = config('passage');
-        foreach ($services as $service => $config) {
-            Http::macro($service, fn () => Http::baseUrl($config['to']));
+        if (isset($passage['enabled']) && $passage['enabled']) {
+            Route::macro('passage', function () {
+                Route::any('{any?}', [PassageController::class, 'index'])->where('any', '.*');
+            });
+
+            $services = $passage['services'];
+            foreach ($services as $service => $config) {
+                Http::macro($service, fn () => Http::baseUrl($config['to']));
+            }
         }
     }
 }
