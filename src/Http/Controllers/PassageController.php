@@ -20,13 +20,11 @@ class PassageController extends Controller
     {
         $uriParts = explode(self::URL_SEPARATOR, $request->path());
 
-        if ($uriParts) {
-            $serviceName = array_shift($uriParts);
-            $uri = implode(self::URL_SEPARATOR, $uriParts);
+        $serviceName = array_shift($uriParts);
+        $uri = implode(self::URL_SEPARATOR, $uriParts);
 
-            if (Http::hasMacro($serviceName)) {
-                return $this->callService($request, Http::$serviceName(), $uri);
-            }
+        if (Http::hasMacro($serviceName)) {
+            return $this->callService($request, Http::$serviceName(), $uri);
         }
 
         return response()->json(['error' => 'Route not found'], ResponseCode::HTTP_NOT_FOUND);
