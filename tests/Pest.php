@@ -1,5 +1,10 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Tests\TestCase;
 
-uses(TestCase::class)->in(__DIR__);
+uses(TestCase::class)
+    ->beforeEach(function() {
+        Route::passage();
+    })
+    ->in(__DIR__);
