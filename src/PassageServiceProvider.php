@@ -24,7 +24,7 @@ class PassageServiceProvider extends PackageServiceProvider
 //            ->hasViews()
 //            ->hasMigration('create_passage_table')
 //            ->hasCommand(PassageCommand::class)
-        ;
+;
     }
 
     public function packageBooted()
