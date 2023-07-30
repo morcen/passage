@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Services\PassageService;
 use Morcen\Passage\Services\PassageServiceInterface;
-use PharIo\Manifest\InvalidUrlException;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -43,7 +42,7 @@ class PassageServiceProvider extends PackageServiceProvider
 
                 Http::macro(
                     $service,
-                    fn() => Http::withOptions($macroOptions)
+                    fn () => Http::withOptions($macroOptions)
                 );
             }
         }
