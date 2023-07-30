@@ -5,7 +5,23 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/morcen/passage/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/morcen/passage/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/morcen/passage.svg?style=flat-square)](https://packagist.org/packages/morcen/passage)
 
-Description TODO
+## Introduction
+
+This is a powerful API Gateway package for Laravel that allows you to efficiently manage and route incoming API requests to various microservices. It simplifies the process of handling API requests and responses, enabling seamless communication between clients and microservices.
+
+## Features
+
+- Request routing to multiple microservices
+- Request validation and transformation (coming soon)
+- Authentication and authorization handling (coming soon)
+- Rate limiting and throttling (coming soon)
+- Caching and response caching (coming soon)
+- Error handling and logging (coming soon)
+
+## Requirements
+
+- PHP version 8.1 or higher
+- Laravel version 10.x or higher
 
 ## Installation
 
@@ -39,25 +55,22 @@ PASSAGE_ENABLED=true
 ##### Passage as a Proxy
 In `config/passage.php`, define the services you want to be forwarded.
 
-Example #1:
-Forward `GET http://{your-host}/blog/users` to `GET http://users-service/api/v1/users`:
+Example:
 ```php
 // config/passage.php
 return [
     'services' => [
-        'blog' => [
-            'base_uri' => 'http://users-service/api/v1/',
+        // Forwards `GET http://{your-host}/github/users/morcen` to `GET https://api.github.com/users/morcen`:
+        'github' => [ // <-- This is the name of the service
+            'base_uri' => 'http://users-service/api/v1/', // <-- This is where the request will be forwarded to
             // other options at https://docs.guzzlephp.org/en/stable/request-options.html
         ],
     ]
 ]
 ```
 > **Note**
-> Make sure that the `base_uri` ends with a trailing slash `/`, otherwise the request might not be forwarded properly.
-
-
-> **Note**
-> All headers, query parameters, as well as the type of request (`GET`, `POST`, etc.) will be forwarded to the service.
+> - Make sure that the `base_uri` ends with a trailing slash `/`, otherwise the request might not be forwarded properly.
+> - All headers, query parameters, as well as the type of request (`GET`, `POST`, etc.) will be forwarded to the service.
 
 #### Disabling `Passage`
 To disable `Passage` on a server/application level, set `PASSAGE_ENABLED` to `false` in your `.env` file:

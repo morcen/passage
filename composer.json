@@ -1,5 +1,6 @@
 {
     "name": "morcen/passage",
+    "version": "v0.2.0",
     "description": "API gateway for Laravel",
     "keywords": [
         "morcen",
