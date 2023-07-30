@@ -4,8 +4,10 @@ namespace Morcen\Passage;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
-use Morcen\Passage\Commands\PassageCommand;
 use Morcen\Passage\Http\Controllers\PassageController;
+use Morcen\Passage\Services\PassageService;
+use Morcen\Passage\Services\PassageServiceInterface;
+use PharIo\Manifest\InvalidUrlException;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -20,24 +22,29 @@ class PassageServiceProvider extends PackageServiceProvider
          */
         $package
             ->name('passage')
-//            ->hasViews()
-//            ->hasMigration('create_passage_table')
-//            ->hasCommand(PassageCommand::class)
             ->hasConfigFile();
     }
 
-    public function packageBooted()
+    public function packageBooted(): void
     {
         $passage = config('passage');
 
         if (isset($passage['enabled']) && $passage['enabled']) {
+            $this->app->bind(PassageServiceInterface::class, PassageService::class);
+
             Route::macro('passage', function () {
                 Route::any('{any?}', [PassageController::class, 'index'])->where('any', '.*');
             });
 
             $services = $passage['services'];
-            foreach ($services as $service => $config) {
-                Http::macro($service, fn () => Http::baseUrl($config['to']));
+            $globalOptions = $passage['options'];
+            foreach ($services as $service => $serviceOptions) {
+                $macroOptions = array_merge($globalOptions, $serviceOptions);
+
+                Http::macro(
+                    $service,
+                    fn() => Http::withOptions($macroOptions)
+                );
             }
         }
     }

@@ -1,4 +1,4 @@
-# Passage: Lightweight API gateway for Laravel
+# Passage: Lightweight API proxy gateway for Laravel
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/morcen/passage.svg?style=flat-square)](https://packagist.org/packages/morcen/passage)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/morcen/passage/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/morcen/passage/actions?query=workflow%3Arun-tests+branch%3Amain)
@@ -36,7 +36,28 @@ PASSAGE_ENABLED=true
 ```
 
 #### Setting gateway routes
-TODO
+##### Passage as a Proxy
+In `config/passage.php`, define the services you want to be forwarded.
+
+Example #1:
+Forward `GET http://{your-host}/blog/users` to `GET http://users-service/api/v1/users`:
+```php
+// config/passage.php
+return [
+    'services' => [
+        'blog' => [
+            'base_uri' => 'http://users-service/api/v1/',
+            // other options at https://docs.guzzlephp.org/en/stable/request-options.html
+        ],
+    ]
+]
+```
+> **Note**
+> Make sure that the `base_uri` ends with a trailing slash `/`, otherwise the request might not be forwarded properly.
+
+
+> **Note**
+> All headers, query parameters, as well as the type of request (`GET`, `POST`, etc.) will be forwarded to the service.
 
 #### Disabling `Passage`
 To disable `Passage` on a server/application level, set `PASSAGE_ENABLED` to `false` in your `.env` file:
