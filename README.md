@@ -21,7 +21,7 @@ This is a powerful API Gateway package for Laravel that allows you to efficientl
 ## Requirements
 
 - PHP version 8.1 or higher
-- Laravel version 10.x or higher
+- Laravel version 8.x or higher
 
 ## Installation
 
