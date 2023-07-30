@@ -2,6 +2,13 @@
 
 All notable changes to `passage` will be documented in this file.
 
+## v0.2.1 - 2023-07-30
+
+- lower Laravel version requirement from 10.x to 8.x
+- added composer.lock file
+
+**Full Changelog**: https://github.com/morcen/passage/compare/v0.2.0...v0.2.1
+
 ## v0.2.0 - 2023-07-30
 
 ### What's Changed
