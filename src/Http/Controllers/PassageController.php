@@ -2,13 +2,10 @@
 
 namespace Morcen\Passage\Http\Controllers;
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Morcen\Passage\Services\PassageServiceInterface;
-use PharIo\Manifest\InvalidUrlException;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
 
 class PassageController extends Controller

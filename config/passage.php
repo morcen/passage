@@ -102,5 +102,5 @@ return [
         | issues).
         */
         'connect_timeout' => env('PASSAGE_CONNECT_TIMEOUT', 10),
-    ]
+    ],
 ];
