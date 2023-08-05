@@ -28,7 +28,7 @@ class PassageServiceProvider extends PackageServiceProvider
             ->hasConfigFile();
 
         $this->publishes([
-            __DIR__.'/stubs/' => base_path('stubs')
+            __DIR__.'/stubs/' => base_path('stubs'),
         ], 'passage-stubs');
     }
 
