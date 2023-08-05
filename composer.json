@@ -1,11 +1,13 @@
 {
     "name": "morcen/passage",
-    "version": "v0.2.1",
+    "version": "v1.0.0",
     "description": "API gateway for Laravel",
     "keywords": [
         "morcen",
         "laravel",
-        "passage"
+        "passage",
+        "laravel api gateway",
+        "laravel api proxy"
     ],
     "homepage": "https://github.com/morcen/passage",
     "license": "MIT",
@@ -50,7 +52,7 @@
         "analyse": "vendor/bin/phpstan analyse",
         "test": "vendor/bin/pest",
         "test-coverage": "vendor/bin/pest --coverage",
-        "format": "vendor/bin/pint"
+        "format": "vendor/bin/pint --dirty"
     },
     "config": {
         "sort-packages": true,
