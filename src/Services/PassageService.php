@@ -4,7 +4,6 @@ namespace Morcen\Passage\Services;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PassageService implements PassageServiceInterface
@@ -15,28 +14,12 @@ class PassageService implements PassageServiceInterface
 
     protected array $params = [];
 
-    public function prepareService(Request $request, PendingRequest $service): void
+    public function callService(Request $request, PendingRequest $service, string $uri): Response
     {
-        $method = strtolower($request->method());
-        $this->setMethod($method);
-
-        $options = $service->getOptions();
-
-        if ($headers = $options['headers']) {
-            $this->setHeaders($headers);
-        }
-    }
-
-    public function callService(Request $request, PendingRequest $service, string $uri): JsonResponse
-    {
-        // TODO: prepare headers
         $method = strtolower($request->method());
         $params = $request->all();
 
-        /** @var Response $response */
-        $response = $service->{$method}($uri, $params);
-
-        return response()->json($response->object(), $response->status());
+        return $service->{$method}($uri, $params);
     }
 
     public function getMethod(): string

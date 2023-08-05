@@ -4,6 +4,8 @@ namespace Morcen\Passage;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Exceptions\InvalidBaseUriException;
+use Morcen\Passage\Exceptions\InvalidPassageHandlerProvided;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Services\PassageService;
 use Morcen\Passage\Services\PassageServiceInterface;
@@ -24,6 +26,9 @@ class PassageServiceProvider extends PackageServiceProvider
             ->hasConfigFile();
     }
 
+    /**
+     * @throws InvalidPassageHandlerProvided|InvalidBaseUriException
+     */
     public function packageBooted(): void
     {
         $passage = config('passage');
@@ -37,8 +42,11 @@ class PassageServiceProvider extends PackageServiceProvider
 
             $services = $passage['services'];
             $globalOptions = $passage['options'];
-            foreach ($services as $service => $serviceOptions) {
-                $macroOptions = array_merge($globalOptions, $serviceOptions);
+            foreach ($services as $service => $handler) {
+                $this->handlerCheckpoint($handler, $service);
+                $options = $this->extractOptions($handler);
+
+                $macroOptions = array_merge($globalOptions, $options);
 
                 Http::macro(
                     $service,
@@ -46,5 +54,36 @@ class PassageServiceProvider extends PackageServiceProvider
                 );
             }
         }
+    }
+
+    /**
+     * @throws InvalidPassageHandlerProvided|InvalidBaseUriException
+     */
+    private function handlerCheckpoint(array|string $handler, string $service): void
+    {
+        if (is_array($handler)) {
+            if (! isset($handler['base_uri'])) {
+                throw new InvalidBaseUriException('Base URI is required for service '.$service.'.');
+            }
+        } elseif (! class_exists($handler) || ! is_subclass_of($handler, PassageControllerInterface::class)) {
+            throw new InvalidPassageHandlerProvided('Invalid service handler provided for service '.$service.'.');
+        }
+
+        // validation passed; continue
+    }
+
+    private function extractOptions(array|string $handler): array
+    {
+        if (is_array($handler)) {
+            return $handler;
+        }
+
+        $options = [];
+        $handlerClass = new $handler();
+        if (method_exists($handlerClass, 'getOptions')) {
+            return $handlerClass->getOptions();
+        }
+
+        return $options;
     }
 }
