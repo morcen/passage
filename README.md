@@ -12,7 +12,8 @@ This is a powerful API Gateway package for Laravel that allows you to efficientl
 ## Features
 
 - Request routing to multiple microservices
-- Request validation and transformation (coming soon)
+- Request payload validation and transformation
+- Response payload transformation
 - Authentication and authorization handling (coming soon)
 - Rate limiting and throttling (coming soon)
 - Caching and response caching (coming soon)

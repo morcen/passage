@@ -4,6 +4,7 @@ namespace Morcen\Passage;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Commands\PassageCommand;
 use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Exceptions\InvalidPassageHandlerProvided;
 use Morcen\Passage\Http\Controllers\PassageController;
@@ -23,6 +24,7 @@ class PassageServiceProvider extends PackageServiceProvider
          */
         $package
             ->name('passage')
+            ->hasCommand(PassageCommand::class)
             ->hasConfigFile();
     }
 
