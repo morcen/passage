@@ -32,9 +32,23 @@ You can install the package via composer:
 composer require morcen/passage
 ```
 
-After installation, the following files will be published:
-- `config/passage.php` - This is where you can configure the services you want to be forwarded.
-- `stubs/controller.passage.stub` - This is the controller stub for generating Passage controllers.
+Then install the package using the following command:
+```bash
+php artisan passage:install
+```
+
+This will publish the package's config file at `config/passage.php`.
+
+If you wish to create a controller for handling requests, publish the controller stub using the following command:
+```bash
+php artisan vendor:publish --tag=passage-stubs
+```
+
+and then generate Passage controllers by running:
+```bash
+php artisan passage:controller {name}
+```
+where `{name}` is the name of the controller you want to generate.
 
 
 ## Usage
