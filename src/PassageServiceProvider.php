@@ -10,6 +10,7 @@ use Morcen\Passage\Exceptions\InvalidPassageHandlerProvided;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Services\PassageService;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -22,14 +23,20 @@ class PassageServiceProvider extends PackageServiceProvider
          *
          * More info: https://github.com/spatie/laravel-package-tools
          */
-        $package
-            ->name('passage')
-            ->hasCommand(PassageCommand::class)
-            ->hasConfigFile();
-
         $this->publishes([
             __DIR__.'/stubs/' => base_path('stubs'),
         ], 'passage-stubs');
+
+        $package
+            ->name('passage')
+            ->hasCommand(PassageCommand::class)
+            ->hasConfigFile()
+            ->hasInstallCommand(function(InstallCommand $command) {
+                $command->callSilently('vendor:publish', ['--tag' => 'passage-stubs']);
+                $command
+                    ->publishConfigFile()
+                    ->askToStarRepoOnGitHub('morcen/passage');
+            });;
     }
 
     /**
@@ -78,6 +85,10 @@ class PassageServiceProvider extends PackageServiceProvider
         // validation passed; continue
     }
 
+    /**
+     * @param  array|string  $handler
+     * @return array
+     */
     private function extractOptions(array|string $handler): array
     {
         if (is_array($handler)) {

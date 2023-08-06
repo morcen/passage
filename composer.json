@@ -1,13 +1,13 @@
 {
     "name": "morcen/passage",
-    "version": "v1.1.0",
+    "version": "v1.1.1",
     "description": "API gateway for Laravel",
     "keywords": [
         "morcen",
         "laravel",
         "passage",
-        "laravel api gateway",
-        "laravel api proxy"
+        "api-gateway",
+        "api-proxy"
     ],
     "homepage": "https://github.com/morcen/passage",
     "license": "MIT",
