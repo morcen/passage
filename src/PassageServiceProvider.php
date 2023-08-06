@@ -23,20 +23,22 @@ class PassageServiceProvider extends PackageServiceProvider
          *
          * More info: https://github.com/spatie/laravel-package-tools
          */
-        $this->publishes([
-            __DIR__.'/stubs/' => base_path('stubs'),
-        ], 'passage-stubs');
-
         $package
             ->name('passage')
             ->hasCommand(PassageCommand::class)
             ->hasConfigFile()
             ->hasInstallCommand(function (InstallCommand $command) {
-//                $command->callSilently('vendor:publish', ['--tag' => 'passage-stubs']);
                 $command
                     ->publishConfigFile()
                     ->askToStarRepoOnGitHub('morcen/passage');
             });
+
+        /**
+         * Prepare tag for publishing stubs.
+         */
+        $this->publishes([
+            __DIR__.'/../resources/stubs/' => base_path('stubs'),
+        ], 'passage-stubs');
     }
 
     /**
