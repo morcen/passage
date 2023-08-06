@@ -4,11 +4,13 @@ namespace Morcen\Passage;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Commands\PassageCommand;
 use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Exceptions\InvalidPassageHandlerProvided;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Services\PassageService;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -23,7 +25,20 @@ class PassageServiceProvider extends PackageServiceProvider
          */
         $package
             ->name('passage')
-            ->hasConfigFile();
+            ->hasCommand(PassageCommand::class)
+            ->hasConfigFile()
+            ->hasInstallCommand(function (InstallCommand $command) {
+                $command
+                    ->publishConfigFile()
+                    ->askToStarRepoOnGitHub('morcen/passage');
+            });
+
+        /**
+         * Prepare tag for publishing stubs.
+         */
+        $this->publishes([
+            __DIR__.'/../resources/stubs/' => base_path('stubs'),
+        ], 'passage-stubs');
     }
 
     /**

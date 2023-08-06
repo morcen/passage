@@ -1,0 +1,46 @@
+<?php
+
+namespace {{ namespace }};
+
+use {{ rootNamespace }}Http\Controllers\Controller;
+use Illuminate\Http\Client\Response;
+use Illuminate\Http\Request;
+use Morcen\Passage\PassageControllerInterface;
+
+class {{ class }} extends Controller implements PassageControllerInterface
+{
+    /**
+     * Transform and/or validate the request before it is sent to the service.
+     *
+     * @param  Request  $request
+     * @return Request
+     */
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    /**
+     * Transform or validate the response before it is sent back to the client.
+     *
+     * @param  Request  $request
+     * @param  Response  $response
+     * @return Response
+     */
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    /**
+     * Set the route options when the service is instantiated.
+     *
+     * @return array
+     */
+    public function getOptions(): array
+    {
+        return [
+            // 'base_uri' => 'https://api.example.com/',
+        ];
+    }
+}

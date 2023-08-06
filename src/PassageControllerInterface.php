@@ -8,12 +8,12 @@ use Illuminate\Http\Request;
 interface PassageControllerInterface
 {
     /**
-     * Dynamically update the request before it is sent to the service.
+     * Transform and/or validate the request before it is sent to the service.
      */
     public function getRequest(Request $request): Request;
 
     /**
-     * Handle the response before sending back to the client.
+     * Transform or validate the response before it is sent back to the client.
      */
     public function getResponse(Request $request, Response $response): Response;
 
