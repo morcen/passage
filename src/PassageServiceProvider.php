@@ -32,7 +32,7 @@ class PassageServiceProvider extends PackageServiceProvider
             ->hasCommand(PassageCommand::class)
             ->hasConfigFile()
             ->hasInstallCommand(function (InstallCommand $command) {
-//                $command->callSilently('vendor:publish', ['--tag' => 'passage-stubs']);
+                //                $command->callSilently('vendor:publish', ['--tag' => 'passage-stubs']);
                 $command
                     ->publishConfigFile()
                     ->askToStarRepoOnGitHub('morcen/passage');
