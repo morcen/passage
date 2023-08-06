@@ -31,12 +31,12 @@ class PassageServiceProvider extends PackageServiceProvider
             ->name('passage')
             ->hasCommand(PassageCommand::class)
             ->hasConfigFile()
-            ->hasInstallCommand(function(InstallCommand $command) {
+            ->hasInstallCommand(function (InstallCommand $command) {
                 $command->callSilently('vendor:publish', ['--tag' => 'passage-stubs']);
                 $command
                     ->publishConfigFile()
                     ->askToStarRepoOnGitHub('morcen/passage');
-            });;
+            });
     }
 
     /**
@@ -85,10 +85,6 @@ class PassageServiceProvider extends PackageServiceProvider
         // validation passed; continue
     }
 
-    /**
-     * @param  array|string  $handler
-     * @return array
-     */
     private function extractOptions(array|string $handler): array
     {
         if (is_array($handler)) {
