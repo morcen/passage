@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Facade;
 
 /**
  * @see \Morcen\Passage\Passage
+ *
+ * @method static mixed getService(string $service)
  */
 class Passage extends Facade
 {
