@@ -151,6 +151,32 @@ return [
 ]
 ```
 
+#### Using the `Passage` facade
+If you wish not to use automatic routing of Passage and instead use the Passage services manuall in your controllers, you can use the `Passage` facade.
+```php
+// config/passage.php
+return [
+    'services' => [
+        'github' => 'https://api.github.com/',
+    ]
+]
+```
+
+and in your controller:
+```php
+// app/Http/Controllers/UserController.php
+
+use Morcen\Passage\Facades\Passage
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        $response = Passage::getService('github')->get('users/morcen');
+        return $response->json();
+    }
+}
+```
 
 ### Disabling `Passage`
 To disable `Passage` on a server/application level, set `PASSAGE_ENABLED` to `false` in your `.env` file:
