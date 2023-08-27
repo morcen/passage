@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Http;
 class Passage
 {
     /**
-     * @param  string  $service
-     * @return PendingRequest
      * @throws MissingPassageService
      */
     public function getService(string $service): PendingRequest
