@@ -1,5 +1,6 @@
 <?php
 
+use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Morcen\Passage\PassageControllerInterface;
@@ -104,12 +105,12 @@ describe('PassageControllerInterface Implementation', function () {
             {
                 // Validate required fields
                 if (! $request->has('required_field')) {
-                    throw new \InvalidArgumentException('Missing required field');
+                    throw new InvalidArgumentException('Missing required field');
                 }
 
                 // Transform data format
                 if ($request->has('date')) {
-                    $date = \Carbon\Carbon::parse($request->input('date'));
+                    $date = Carbon::parse($request->input('date'));
                     $request->merge(['formatted_date' => $date->toISOString()]);
                 }
 
@@ -144,7 +145,7 @@ describe('PassageControllerInterface Implementation', function () {
             public function getRequest(Request $request): Request
             {
                 if (! $request->has('required_field')) {
-                    throw new \InvalidArgumentException('Missing required field');
+                    throw new InvalidArgumentException('Missing required field');
                 }
 
                 return $request;
@@ -164,7 +165,7 @@ describe('PassageControllerInterface Implementation', function () {
         $invalidRequest = Request::create('/test', 'POST', ['optional_field' => 'value']);
 
         expect(fn () => $validatorController->getRequest($invalidRequest))
-            ->toThrow(\InvalidArgumentException::class, 'Missing required field');
+            ->toThrow(InvalidArgumentException::class, 'Missing required field');
     });
 
     it('can modify response status and data', function () {
@@ -181,7 +182,7 @@ describe('PassageControllerInterface Implementation', function () {
 
                 // Add metadata to response
                 $data['meta'] = [
-                    'timestamp' => \Carbon\Carbon::now()->toISOString(),
+                    'timestamp' => Carbon::now()->toISOString(),
                     'version' => '1.0',
                 ];
 
