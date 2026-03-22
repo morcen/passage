@@ -7,190 +7,220 @@
 
 ## Introduction
 
-This is a powerful API Gateway package for Laravel that allows you to efficiently manage and route incoming API requests to various microservices. It simplifies the process of handling API requests and responses, enabling seamless communication between clients and microservices.
+Passage is a lightweight API gateway package for Laravel that proxies incoming requests to external services. It gives you per-route control over HTTP method, path, request transformation, and response transformation — using a routing syntax that mirrors Laravel's own.
 
 ## Features
 
-- Request routing to multiple microservices
-- Request payload validation and transformation
-- Response payload transformation
+- Route-based proxy definitions using a familiar `Passage::get/post/...` API
+- Per-route request and response transformation hooks
+- Global and per-handler Guzzle options (timeout, headers, etc.)
+- Works naturally with Laravel route groups, middleware, named routes, and `route:list`
 - Authentication and authorization handling (coming soon)
 - Rate limiting and throttling (coming soon)
 - Caching and response caching (coming soon)
-- Error handling and logging (coming soon)
 
 ## Requirements
 
-- PHP version 8.2 or higher (8.3+ recommended)
-- Laravel version 11.x or higher
+- PHP 8.2 or higher
+- Laravel 11.x or 12.x
 
-> **Note**
-> - PHP 8.1 and Laravel 10.x and below are no longer supported as of v2.0.0. For older PHP and Laravel support, please use [v1.2.4](https://github.com/morcen/passage/releases/tag/v1.2.4) of this package.
+> **Upgrading from v2?**
+> v3.0.0 is a breaking release. The config-based `services` array and `Route::passage()` macro have been removed. See the [Upgrading from v2](#upgrading-from-v2) section below.
+
+> **On v1.x?**
+> PHP 8.1 and Laravel 10.x are no longer supported as of v2.0.0. Use [v1.2.4](https://github.com/morcen/passage/releases/tag/v1.2.4) for older environments.
 
 ## Installation
-
-You can install the package via composer:
 
 ```bash
 composer require morcen/passage
 ```
 
-Then install the package using the following command:
+Then publish the config file:
 ```bash
 php artisan passage:install
 ```
 
-This will publish the package's config file at `config/passage.php`.
-
-If you wish to create a controller for handling requests, publish the controller stub using the following command:
+To publish the controller stub for generating Passage handlers:
 ```bash
 php artisan vendor:publish --tag=passage-stubs
 ```
 
-and then generate Passage controllers by running:
-```bash
-php artisan passage:controller {name}
-```
-where `{name}` is the name of the controller you want to generate.
-
-
 ## Usage
 
-#### Enabling `Passage`
-To start using this package, add this line in your `routes/web.php` to enable Passage:
+### Defining proxy routes
+
+Passage routes are defined in your route files (e.g. `routes/web.php`) using the `Passage` facade. The syntax mirrors Laravel's own routing:
+
 ```php
-Route::passage();
+use Morcen\Passage\Facades\Passage;
+
+Passage::get('github/{path?}', GithubPassageController::class);
+Passage::post('stripe/{path?}', StripePassageController::class);
+Passage::any('payments/{path?}', PaymentsPassageController::class);
 ```
 
-And make sure that in your `.env`, either `PASSAGE_ENABLED` is not set or it is set as `true`:
-```env
-PASSAGE_ENABLED=true
+Each call registers a real Laravel route, so your proxy routes appear in `php artisan route:list` alongside your application's own routes.
+
+The `{path?}` parameter captures the sub-path that is forwarded to the upstream service. For example:
+
+```
+GET /github/users/morcen  →  GET https://api.github.com/users/morcen
+POST /stripe/charges      →  POST https://api.stripe.com/charges
 ```
 
-#### Setting gateway routes
-##### Passage as a Proxy
-In `config/passage.php`, define the services you want to be forwarded.
+All supported methods: `get`, `post`, `put`, `patch`, `delete`, `any`.
 
-Example:
+### Route groups
+
+Passage routes work inside any Laravel route group:
+
 ```php
-// config/passage.php
-return [
-    'services' => [
-        // Forwards `GET http://{your-host}/github/users/morcen` to `GET https://api.github.com/users/morcen`:
-        'github' => [ // <-- This is the name of the service
-            'base_uri' => 'http://users-service/api/v1/', // <-- This is where the request will be forwarded to
-            // other options at https://docs.guzzlephp.org/en/stable/request-options.html
-        ],
-    ]
-]
+Route::prefix('v1')->middleware('auth')->group(function () {
+    Passage::get('github/{path?}', GithubPassageController::class);
+    Passage::post('stripe/{path?}', StripePassageController::class);
+});
 ```
-> **Note**
-> - Make sure that the `base_uri` ends with a trailing slash `/`, otherwise the request might not be forwarded properly.
-> - All headers, query parameters, as well as the type of request (`GET`, `POST`, etc.) will be forwarded to the service.
 
-##### Transforming/validating requests and response through a Passage controller
-If you have a service called `github` and you want to handle the incoming and outgoing payloads, you can create a controller for it by running:
+Named routes and other route chaining also work:
+
+```php
+Passage::get('github/{path?}', GithubPassageController::class)
+    ->name('github.proxy')
+    ->middleware('throttle:60,1');
+```
+
+### Creating a Passage handler
+
+Every Passage route requires a handler class that implements `PassageControllerInterface`. Generate one with:
+
 ```bash
 php artisan passage:controller GithubPassageController
 ```
-This will create a controller at `app/Http/Controllers/Passage/GithubPassageController.php`.
 
-In your controller, you can define the following methods:
+This creates `app/Http/Controllers/Passages/GithubPassageController.php`. Implement the three required methods:
+
 ```php
-// app/Http/Controllers/Passage/GithubPassageController.php
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Morcen\Passage\PassageControllerInterface;
 
-class GithubPassageController extends Controller implements PassageControllerInterface
+class GithubPassageController implements PassageControllerInterface
 {
     /**
-     * Transform and/or validate the request before it is sent to the service.
-     *
-     * @param  Request  $request
-     * @return Request
-     */
-    public function getRequest(Request $request): Request
-    {
-        // Transform the request here
-        return $request;
-    }
-
-    /**
-     * Transform or validate the response before it is sent back to the client.
-     *
-     * @param  Request  $request
-     * @param  Response  $response
-     * @return Response
-     */
-    public function getResponse(Request $request, Response $response): Response
-    {
-        // Transform the response here
-        return $response;
-    }
-
-    /**
-     * Set the route options when the service is instantiated.
-     *
-     * @return array
+     * The upstream base URI and any Guzzle options for this service.
+     * See https://docs.guzzlephp.org/en/stable/request-options.html
      */
     public function getOptions(): array
     {
         return [
-             'base_uri' => 'https://api.github.com/',
+            'base_uri' => 'https://api.github.com/',
         ];
     }
-}
-```
 
-In your `config/passage.php`, add the controller to the `services` array:
-```php
-// config/passage.php
-return [
-    'services' => [
-        'github' => \App\Http\Controllers\Passage\GithubPassageController::class, // <-- Add this line,
-    ]
-]
-```
-
-#### Using the `Passage` facade
-If you wish not to use automatic routing of Passage and instead use the Passage services manuall in your controllers, you can use the `Passage` facade.
-```php
-// config/passage.php
-return [
-    'services' => [
-        'github' => 'https://api.github.com/',
-    ]
-]
-```
-
-and in your controller:
-```php
-// app/Http/Controllers/UserController.php
-
-use Morcen\Passage\Facades\Passage
-
-class UserController extends Controller
-{
-    public function index()
+    /**
+     * Transform or validate the request before it is forwarded upstream.
+     * Return the request unchanged to pass it through as-is.
+     */
+    public function getRequest(Request $request): Request
     {
-        $response = Passage::getService('github')->get('users/morcen');
-        return $response->json();
+        // Example: inject an auth token
+        $request->headers->set('Authorization', 'Bearer '.config('services.github.token'));
+        return $request;
+    }
+
+    /**
+     * Transform or validate the upstream response before it is returned to the client.
+     * Return the response unchanged to pass it through as-is.
+     */
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
     }
 }
 ```
 
-### Disabling `Passage`
-To disable `Passage` on a server/application level, set `PASSAGE_ENABLED` to `false` in your `.env` file:
+> **Note:** The `base_uri` must end with a trailing slash `/`, otherwise sub-path forwarding may not work correctly.
+
+### Global options
+
+Timeout and connection settings that apply to all Passage routes can be configured in `config/passage.php` or via environment variables:
+
+```env
+PASSAGE_TIMEOUT=30
+PASSAGE_CONNECT_TIMEOUT=10
+```
+
+Options defined in a handler's `getOptions()` override these global defaults.
+
+### Listing proxy routes
+
+```bash
+php artisan passage:list
+```
+
+Displays a table of all registered Passage routes with their HTTP methods, URIs, and upstream targets.
+
+### Disabling Passage
+
+Set `PASSAGE_ENABLED=false` in your `.env` to disable all Passage proxying without removing route definitions:
+
 ```env
 PASSAGE_ENABLED=false
 ```
 
-Alternatively, comment this line in your `routes/web.php`:
-```php
-Route::passage();
+---
+
+## Upgrading from v2
+
+v3.0.0 is a **breaking release**. If you are on v2 and are not ready to migrate, pin your version in `composer.json`:
+
+```json
+"morcen/passage": "^2.0"
 ```
+
+### What changed
+
+| v2 | v3 |
+|----|----|
+| `config/passage.php` `services` array | Removed — routes are defined in route files |
+| `Route::passage()` in `routes/web.php` | Removed — use `Passage::get/post/...` instead |
+| Array-based handlers (`['base_uri' => '...']`) | Removed — a handler class is always required |
+
+### Migration steps
+
+**1. Remove `Route::passage()` from your route files.**
+
+**2. For each entry in `config/passage.php` `services`:**
+
+If the entry was an array:
+```php
+// v2 config/passage.php
+'github' => ['base_uri' => 'https://api.github.com/'],
+```
+
+Create a handler class (or use `passage:controller`) and move `base_uri` into `getOptions()`:
+```php
+// v3 app/Http/Controllers/Passages/GithubPassageController.php
+public function getOptions(): array
+{
+    return ['base_uri' => 'https://api.github.com/'];
+}
+```
+
+If the entry was already a controller class, it can be reused as-is — just make sure it implements `PassageControllerInterface`.
+
+**3. Register routes in your route files:**
+```php
+// v3 routes/web.php
+use Morcen\Passage\Facades\Passage;
+
+Passage::get('github/{path?}', GithubPassageController::class);
+```
+
+**4. Remove the `services` key from `config/passage.php`** (or re-publish the config with `php artisan vendor:publish --tag=passage-config --force`).
+
+---
 
 ## Testing
 
