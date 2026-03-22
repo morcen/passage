@@ -2,7 +2,9 @@
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Facades\Passage;
+use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
 
@@ -56,8 +58,8 @@ describe('Passage Integration Tests', function () {
 
     it('returns 404 for a passage route with a missing handler', function () {
         // Register a route without a proper handler via raw route (edge case)
-        \Illuminate\Support\Facades\Route::get('broken/{path?}', [
-            \Morcen\Passage\Http\Controllers\PassageController::class, 'handle',
+        Route::get('broken/{path?}', [
+            PassageController::class, 'handle',
         ])->where('path', '.*');
 
         $this->get('/broken/anything')
@@ -68,7 +70,7 @@ describe('Passage Integration Tests', function () {
     it('passage routes appear in the route collection', function () {
         Passage::get('listed/{path?}', IntegrationTestPassageController::class);
 
-        $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())
+        $routes = collect(Route::getRoutes())
             ->filter(fn ($r) => str_contains($r->uri(), 'listed'));
 
         expect($routes)->not->toBeEmpty();

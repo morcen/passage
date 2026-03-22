@@ -1,3 +1,5 @@
 <?php
 
-uses(Morcen\Passage\Tests\TestCase::class)->in(__DIR__);
+use Morcen\Passage\Tests\TestCase;
+
+uses(TestCase::class)->in(__DIR__);

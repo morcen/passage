@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Services\PassageServiceInterface;
 
 describe('PassageServiceProvider', function () {
@@ -8,6 +9,6 @@ describe('PassageServiceProvider', function () {
     });
 
     it('does not register Route::passage() macro', function () {
-        expect(\Illuminate\Support\Facades\Route::hasMacro('passage'))->toBeFalse();
+        expect(Route::hasMacro('passage'))->toBeFalse();
     });
 });

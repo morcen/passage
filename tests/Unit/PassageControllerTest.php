@@ -4,8 +4,6 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Route;
-use Morcen\Passage\Facades\Passage;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
@@ -96,7 +94,7 @@ beforeEach(function () {
 describe('PassageController', function () {
     it('returns 404 when no handler is set in route defaults', function () {
         $request = Request::create('/no-handler', 'GET');
-        $route = new \Illuminate\Routing\Route(['GET'], '/no-handler', []);
+        $route = new Illuminate\Routing\Route(['GET'], '/no-handler', []);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
 
@@ -108,8 +106,8 @@ describe('PassageController', function () {
 
     it('returns 404 when handler does not implement PassageControllerInterface', function () {
         $request = Request::create('/bad-handler', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/bad-handler', []))
-            ->defaults('_passage_handler', \stdClass::class);
+        $route = (new Illuminate\Routing\Route(['GET'], '/bad-handler', []))
+            ->defaults('_passage_handler', stdClass::class);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
 
@@ -120,7 +118,7 @@ describe('PassageController', function () {
 
     it('proxies a basic GET request and returns JSON response', function () {
         $request = Request::create('/github/users/123', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
+        $route = (new Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
             ->defaults('_passage_handler', TestPassageController::class);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
@@ -148,7 +146,7 @@ describe('PassageController', function () {
 
     it('extracts the path route parameter as the forwarded URI', function () {
         $request = Request::create('/github/users/morcen/repos', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
+        $route = (new Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
             ->defaults('_passage_handler', TestPassageController::class)
             ->where('path', '.*');
         $route->bind($request);
@@ -173,7 +171,7 @@ describe('PassageController', function () {
 
     it('applies only request transformation when response is passed through', function () {
         $request = Request::create('/auth/profile', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/auth/{path?}', []))
+        $route = (new Illuminate\Routing\Route(['GET'], '/auth/{path?}', []))
             ->defaults('_passage_handler', TestRequestOnlyPassageController::class);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
@@ -199,7 +197,7 @@ describe('PassageController', function () {
 
     it('applies only response transformation when request is passed through', function () {
         $request = Request::create('/enriched/posts', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/enriched/{path?}', []))
+        $route = (new Illuminate\Routing\Route(['GET'], '/enriched/{path?}', []))
             ->defaults('_passage_handler', TestResponseOnlyPassageController::class);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
@@ -223,7 +221,7 @@ describe('PassageController', function () {
         config(['passage.options' => ['timeout' => 60, 'http_errors' => false]]);
 
         $request = Request::create('/github/users', 'GET');
-        $route = (new \Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
+        $route = (new Illuminate\Routing\Route(['GET'], '/github/{path?}', []))
             ->defaults('_passage_handler', TestPassageController::class);
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
