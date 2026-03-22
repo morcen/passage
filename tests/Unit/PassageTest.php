@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Routing\Route;
-use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Passage;
 
 beforeEach(function () {
