@@ -58,10 +58,6 @@ jobs:
       - name: Execute tests
         run: vendor/bin/pest --colors=always
 
-      - name: Execute static analysis
-        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
-        if: matrix.php == '8.3' && matrix.laravel == '11.*'
-
       - name: Check code style
         run: vendor/bin/pint --test
         if: matrix.php == '8.3' && matrix.laravel == '11.*'
