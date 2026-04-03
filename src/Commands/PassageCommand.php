@@ -27,16 +27,18 @@ class PassageCommand extends Command
 
         $this->info("Passage controller created at app/Http/Controllers/Passages/{$name}.php successfully!");
         $this->newLine();
-        $this->info('Add the following to config.passage.services, if not already: ');
+        $this->info('Next, register a route in your routes file:');
         $this->newLine();
-
-        $service = strtolower(str_replace(['PassageController', 'Controller'], '', $name));
-        $this->info('// config/passage.php');
-        $this->info('services => [');
-        $this->info('    ...');
-        $this->line("    '{$service}' => App\Http\Controllers\Passages\\{$name}::class,");
-        $this->info("    // replace '$service' with the name of the service you want to use in your route.");
-        $this->info(']');
+        $this->line("    use App\\Http\\Controllers\\Passages\\{$name};");
+        $this->newLine();
+        $this->line("    Passage::get('{your-prefix}/{path?}', {$name}::class);");
+        $this->newLine();
+        $this->info("Then set the upstream base URI in {$name}::getOptions():");
+        $this->newLine();
+        $this->line('    public function getOptions(): array');
+        $this->line('    {');
+        $this->line("        return ['base_uri' => 'https://api.example.com/'];");
+        $this->line('    }');
 
         return self::SUCCESS;
     }

@@ -5,7 +5,9 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
+use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Http\Controllers\PassageController;
+use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
@@ -29,6 +31,9 @@ class TestPassageController implements PassageControllerInterface
         $mock = Mockery::mock(Response::class);
         $mock->shouldReceive('json')->andReturn($data);
         $mock->shouldReceive('status')->andReturn($response->status());
+        $mock->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
+        $mock->shouldReceive('headers')->andReturn([]);
+        $mock->shouldReceive('body')->andReturn(json_encode($data));
 
         return $mock;
     }
@@ -76,6 +81,9 @@ class TestResponseOnlyPassageController implements PassageControllerInterface
         $mock = Mockery::mock(Response::class);
         $mock->shouldReceive('json')->andReturn($data);
         $mock->shouldReceive('status')->andReturn(201);
+        $mock->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
+        $mock->shouldReceive('headers')->andReturn([]);
+        $mock->shouldReceive('body')->andReturn(json_encode($data));
 
         return $mock;
     }
@@ -86,11 +94,34 @@ class TestResponseOnlyPassageController implements PassageControllerInterface
     }
 }
 
+// Fixture: missing base_uri
+class TestNoBaseUriPassageController implements PassageControllerInterface
+{
+    public function getRequest(Request $request): Request { return $request; }
+    public function getResponse(Request $request, Response $response): Response { return $response; }
+    public function getOptions(): array { return []; }
+}
+
 beforeEach(function () {
     $this->mockPassageService = Mockery::mock(PassageServiceInterface::class);
     $this->app->instance(PassageServiceInterface::class, $this->mockPassageService);
-    $this->controller = new PassageController($this->mockPassageService);
+    $this->controller = new PassageController($this->mockPassageService, new PassageResponseBuilder);
 });
+
+/**
+ * Helper: build a mock upstream Response that PassageResponseBuilder can consume.
+ */
+function jsonUpstreamResponse(array $data, int $status = 200): Response
+{
+    $mock = Mockery::mock(Response::class);
+    $mock->shouldReceive('status')->andReturn($status);
+    $mock->shouldReceive('json')->andReturn($data);
+    $mock->shouldReceive('body')->andReturn(json_encode($data));
+    $mock->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
+    $mock->shouldReceive('headers')->andReturn([]);
+
+    return $mock;
+}
 
 describe('PassageController', function () {
     it('returns 404 when no handler is set in route defaults', function () {
@@ -117,6 +148,19 @@ describe('PassageController', function () {
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_NOT_FOUND);
     });
 
+    it('throws InvalidBaseUriException when handler returns no base_uri', function () {
+        $request = Request::create('/no-base-uri/test', 'GET');
+        $route = (new Route(['GET'], '/no-base-uri/{path?}', []))
+            ->defaults('_passage_handler', TestNoBaseUriPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        Http::shouldReceive('withOptions')->never();
+
+        expect(fn () => $this->controller->handle($request))
+            ->toThrow(InvalidBaseUriException::class);
+    });
+
     it('proxies a basic GET request and returns JSON response', function () {
         $request = Request::create('/github/users/123', 'GET');
         $route = (new Route(['GET'], '/github/{path?}', []))
@@ -127,9 +171,7 @@ describe('PassageController', function () {
         $mockPendingRequest = Mockery::mock(PendingRequest::class);
         Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
 
-        $mockResponse = Mockery::mock(Response::class);
-        $mockResponse->shouldReceive('json')->andReturn(['id' => 123]);
-        $mockResponse->shouldReceive('status')->andReturn(200);
+        $mockResponse = jsonUpstreamResponse(['id' => 123]);
 
         $this->mockPassageService->shouldReceive('callService')
             ->withArgs(function (Request $req, $pending, string $uri) use ($mockPendingRequest) {
@@ -145,6 +187,34 @@ describe('PassageController', function () {
         expect($response->getData(true))->toMatchArray(['id' => 123, 'controller_processed' => true]);
     });
 
+    it('strips sensitive client headers before passing to the handler', function () {
+        $request = Request::create('/github/users', 'GET');
+        $request->headers->set('Authorization', 'Bearer client-token');
+        $request->headers->set('Cookie', 'session=abc');
+
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestRequestOnlyPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
+
+        $mockResponse = jsonUpstreamResponse(['user' => 'morcen']);
+
+        // The handler (TestRequestOnlyPassageController) sets Authorization to a service token.
+        // The original client cookie must not survive.
+        $this->mockPassageService->shouldReceive('callService')
+            ->withArgs(function (Request $req) {
+                return $req->header('Authorization') === 'Bearer injected-token'
+                    && $req->header('Cookie') === null;
+            })
+            ->once()
+            ->andReturn($mockResponse);
+
+        $this->controller->handle($request);
+    });
+
     it('extracts the path route parameter as the forwarded URI', function () {
         $request = Request::create('/github/users/morcen/repos', 'GET');
         $route = (new Route(['GET'], '/github/{path?}', []))
@@ -156,9 +226,7 @@ describe('PassageController', function () {
         $mockPendingRequest = Mockery::mock(PendingRequest::class);
         Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
 
-        $mockResponse = Mockery::mock(Response::class);
-        $mockResponse->shouldReceive('json')->andReturn([]);
-        $mockResponse->shouldReceive('status')->andReturn(200);
+        $mockResponse = jsonUpstreamResponse([]);
 
         $this->mockPassageService->shouldReceive('callService')
             ->withArgs(function (Request $req, $pending, string $uri) {
@@ -170,33 +238,7 @@ describe('PassageController', function () {
         $this->controller->handle($request);
     });
 
-    it('applies only request transformation when response is passed through', function () {
-        $request = Request::create('/auth/profile', 'GET');
-        $route = (new Route(['GET'], '/auth/{path?}', []))
-            ->defaults('_passage_handler', TestRequestOnlyPassageController::class);
-        $route->bind($request);
-        $request->setRouteResolver(fn () => $route);
-
-        $mockPendingRequest = Mockery::mock(PendingRequest::class);
-        Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
-
-        $mockResponse = Mockery::mock(Response::class);
-        $mockResponse->shouldReceive('json')->andReturn(['user' => 'morcen']);
-        $mockResponse->shouldReceive('status')->andReturn(200);
-
-        $this->mockPassageService->shouldReceive('callService')
-            ->withArgs(function (Request $req) {
-                return $req->header('Authorization') === 'Bearer injected-token';
-            })
-            ->once()
-            ->andReturn($mockResponse);
-
-        $response = $this->controller->handle($request);
-
-        expect($response->getData(true))->toBe(['user' => 'morcen']);
-    });
-
-    it('applies only response transformation when request is passed through', function () {
+    it('applies response transformation', function () {
         $request = Request::create('/enriched/posts', 'GET');
         $route = (new Route(['GET'], '/enriched/{path?}', []))
             ->defaults('_passage_handler', TestResponseOnlyPassageController::class);
@@ -206,9 +248,7 @@ describe('PassageController', function () {
         $mockPendingRequest = Mockery::mock(PendingRequest::class);
         Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
 
-        $mockResponse = Mockery::mock(Response::class);
-        $mockResponse->shouldReceive('json')->andReturn(['posts' => [1, 2, 3]]);
-        $mockResponse->shouldReceive('status')->andReturn(200);
+        $mockResponse = jsonUpstreamResponse(['posts' => [1, 2, 3]]);
 
         $this->mockPassageService->shouldReceive('callService')->once()->andReturn($mockResponse);
 
@@ -235,9 +275,7 @@ describe('PassageController', function () {
             ->once()
             ->andReturn(Mockery::mock(PendingRequest::class));
 
-        $mockResponse = Mockery::mock(Response::class);
-        $mockResponse->shouldReceive('json')->andReturn([]);
-        $mockResponse->shouldReceive('status')->andReturn(200);
+        $mockResponse = jsonUpstreamResponse([]);
 
         $this->mockPassageService->shouldReceive('callService')->once()->andReturn($mockResponse);
 
