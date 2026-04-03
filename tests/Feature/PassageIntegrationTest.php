@@ -28,16 +28,38 @@ class IntegrationTestPassageController implements PassageControllerInterface
 
 class XmlIntegrationPassageController implements PassageControllerInterface
 {
-    public function getRequest(Request $request): Request { return $request; }
-    public function getResponse(Request $request, Response $response): Response { return $response; }
-    public function getOptions(): array { return ['base_uri' => 'https://xml.example.com/']; }
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://xml.example.com/'];
+    }
 }
 
 class PlainTextIntegrationPassageController implements PassageControllerInterface
 {
-    public function getRequest(Request $request): Request { return $request; }
-    public function getResponse(Request $request, Response $response): Response { return $response; }
-    public function getOptions(): array { return ['base_uri' => 'https://text.example.com/']; }
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://text.example.com/'];
+    }
 }
 
 /**

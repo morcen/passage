@@ -3,7 +3,6 @@
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
 use Morcen\Passage\Http\PassageResponseBuilder;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 beforeEach(function () {
     $this->builder = new PassageResponseBuilder;
@@ -114,10 +113,10 @@ describe('PassageResponseBuilder::build()', function () {
             $upstream->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
             $upstream->shouldReceive('json')->andReturn([]);
             $upstream->shouldReceive('headers')->andReturn([
-                'content-type'      => ['application/json'],
-                'connection'        => ['keep-alive'],
+                'content-type' => ['application/json'],
+                'connection' => ['keep-alive'],
                 'transfer-encoding' => ['chunked'],
-                'x-custom'          => ['pass-through'],
+                'x-custom' => ['pass-through'],
             ]);
 
             $response = $this->builder->build($upstream);

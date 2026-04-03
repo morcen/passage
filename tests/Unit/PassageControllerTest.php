@@ -97,9 +97,20 @@ class TestResponseOnlyPassageController implements PassageControllerInterface
 // Fixture: missing base_uri
 class TestNoBaseUriPassageController implements PassageControllerInterface
 {
-    public function getRequest(Request $request): Request { return $request; }
-    public function getResponse(Request $request, Response $response): Response { return $response; }
-    public function getOptions(): array { return []; }
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return [];
+    }
 }
 
 beforeEach(function () {
