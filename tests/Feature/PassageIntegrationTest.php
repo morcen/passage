@@ -1,13 +1,11 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Contracts\AcceptsClientHeaders;
 use Morcen\Passage\Contracts\ValidatesInboundRequest;
 use Morcen\Passage\Facades\Passage;
 use Morcen\Passage\Http\Controllers\PassageController;
-use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\PassageHandler;
 
 // ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ interface AcceptsClientHeaders
      * Return the list of client headers (lowercase) that this handler wants
      * to preserve from the strip policy.
      *
-     * @return string[]  e.g. ['authorization', 'cookie']
+     * @return string[] e.g. ['authorization', 'cookie']
      */
     public function allowedClientHeaders(): array;
 }

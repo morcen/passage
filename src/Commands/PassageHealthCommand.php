@@ -3,6 +3,7 @@
 namespace Morcen\Passage\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\PassageControllerInterface;
@@ -50,6 +51,7 @@ class PassageHealthCommand extends Command
 
             if (! $baseUri) {
                 $rows[] = [$handler, $baseUri ?? '—', '<fg=yellow>SKIPPED</>', 'No base_uri configured'];
+
                 continue;
             }
 
@@ -85,7 +87,7 @@ class PassageHealthCommand extends Command
         }
     }
 
-    private function passageRoutes(): \Illuminate\Support\Collection
+    private function passageRoutes(): Collection
     {
         return collect(app('router')->getRoutes())
             ->filter(fn ($route) => str_contains(
