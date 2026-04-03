@@ -40,9 +40,9 @@ class PassageCacheManager
         Cache::store($this->store())->put(
             $this->key($method, $fullUrl, $options),
             [
-                'status'  => $response->status(),
+                'status' => $response->status(),
                 'headers' => $response->headers(),
-                'body'    => $response->body(),
+                'body' => $response->body(),
             ],
             $ttl
         );

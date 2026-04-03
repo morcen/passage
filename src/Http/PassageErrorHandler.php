@@ -54,9 +54,9 @@ class PassageErrorHandler
     private function resolveMessage(Throwable $e, int $status): string
     {
         return match ($status) {
-            Response::HTTP_GATEWAY_TIMEOUT    => 'Upstream service timed out.',
-            Response::HTTP_BAD_GATEWAY        => 'Upstream service is unreachable.',
-            default                           => 'An unexpected error occurred.',
+            Response::HTTP_GATEWAY_TIMEOUT => 'Upstream service timed out.',
+            Response::HTTP_BAD_GATEWAY => 'Upstream service is unreachable.',
+            default => 'An unexpected error occurred.',
         };
     }
 }

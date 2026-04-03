@@ -33,26 +33,26 @@ class PassageEventSubscriber
     {
         Log::channel($this->channel())->debug('Passage: forwarding request', [
             'handler' => $event->handler,
-            'uri'     => $event->upstreamUri,
-            'method'  => $event->request->method(),
+            'uri' => $event->upstreamUri,
+            'method' => $event->request->method(),
         ]);
     }
 
     public function onResponseReceived(PassageResponseReceived $event): void
     {
         Log::channel($this->channel())->info('Passage: response received', [
-            'handler'     => $event->handler,
-            'status'      => $event->response->status(),
+            'handler' => $event->handler,
+            'status' => $event->response->status(),
             'duration_ms' => round($event->durationMs, 2),
-            'cached'      => $event->cached,
+            'cached' => $event->cached,
         ]);
     }
 
     public function onRequestFailed(PassageRequestFailed $event): void
     {
         Log::channel($this->channel())->error('Passage: request failed', [
-            'handler'     => $event->handler,
-            'error'       => $event->exception->getMessage(),
+            'handler' => $event->handler,
+            'error' => $event->exception->getMessage(),
             'duration_ms' => round($event->durationMs, 2),
         ]);
     }
@@ -60,9 +60,9 @@ class PassageEventSubscriber
     public function subscribe(Dispatcher $events): array
     {
         return [
-            PassageRequestSending::class   => 'onRequestSending',
+            PassageRequestSending::class => 'onRequestSending',
             PassageResponseReceived::class => 'onResponseReceived',
-            PassageRequestFailed::class    => 'onRequestFailed',
+            PassageRequestFailed::class => 'onRequestFailed',
         ];
     }
 

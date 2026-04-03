@@ -1,5 +1,6 @@
 <?php
 
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -17,7 +18,6 @@ use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Http\PassageCacheManager;
 use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
-use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\PassageHandler;
 use Morcen\Passage\Services\PassageServiceInterface;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
@@ -113,7 +113,8 @@ beforeEach(function () {
 
 describe('3.1 Retry ergonomics', function () {
     it('HasResilienceOptions::withRetry() produces the correct passage_* keys', function () {
-        $handler = new class {
+        $handler = new class
+        {
             use HasResilienceOptions;
 
             public function options(): array
@@ -125,7 +126,7 @@ describe('3.1 Retry ergonomics', function () {
         $opts = $handler->options();
 
         expect($opts)->toMatchArray([
-            'passage_retry_times'    => 3,
+            'passage_retry_times' => 3,
             'passage_retry_sleep_ms' => 200,
         ]);
     });
@@ -305,8 +306,8 @@ describe('3.4 Streaming', function () {
         $upstreamMock->shouldReceive('header')->with('Content-Type')->andReturn('text/event-stream');
 
         // toPsrResponse() → PSR-7 Response with a stream body
-        $stream = \GuzzleHttp\Psr7\Utils::streamFor('data: hello');
-        $psr7 = new \GuzzleHttp\Psr7\Response(200, [], $stream);
+        $stream = Utils::streamFor('data: hello');
+        $psr7 = new GuzzleHttp\Psr7\Response(200, [], $stream);
         $upstreamMock->shouldReceive('toPsrResponse')->andReturn($psr7);
 
         $this->mockService->shouldReceive('callService')->once()->andReturn($upstreamMock);
