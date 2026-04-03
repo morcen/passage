@@ -36,5 +36,8 @@ class PassageServiceProvider extends PackageServiceProvider
         if (isset($passage['enabled']) && $passage['enabled']) {
             $this->app->bind(PassageServiceInterface::class, PassageService::class);
         }
+
+        // PassageResponseBuilder, AllowedHostsGuard, PassageCacheManager, and
+        // PassageErrorHandler have no dependencies and are auto-resolved by the container.
     }
 }

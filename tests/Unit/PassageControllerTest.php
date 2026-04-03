@@ -9,6 +9,8 @@ use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Exceptions\PassageRequestAbortedException;
 use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\Controllers\PassageController;
+use Morcen\Passage\Http\PassageCacheManager;
+use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
@@ -122,6 +124,8 @@ beforeEach(function () {
         $this->mockPassageService,
         new PassageResponseBuilder,
         new AllowedHostsGuard,
+        new PassageCacheManager,
+        new PassageErrorHandler,
     );
 });
 
