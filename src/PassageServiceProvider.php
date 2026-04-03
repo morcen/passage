@@ -3,6 +3,7 @@
 namespace Morcen\Passage;
 
 use Morcen\Passage\Commands\PassageCommand;
+use Morcen\Passage\Commands\PassageHealthCommand;
 use Morcen\Passage\Commands\PassageListCommand;
 use Morcen\Passage\Services\PassageService;
 use Morcen\Passage\Services\PassageServiceInterface;
@@ -16,7 +17,7 @@ class PassageServiceProvider extends PackageServiceProvider
     {
         $package
             ->name('passage')
-            ->hasCommands([PassageCommand::class, PassageListCommand::class])
+            ->hasCommands([PassageCommand::class, PassageListCommand::class, PassageHealthCommand::class])
             ->hasConfigFile()
             ->hasInstallCommand(function (InstallCommand $command) {
                 $command

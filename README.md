@@ -47,9 +47,14 @@ If you want to see how this maps to real projects, read the [example scenarios](
 - Per-route request and response transformation hooks
 - Global and per-handler Guzzle options (timeout, headers, etc.)
 - Works naturally with Laravel route groups, middleware, named routes, and `route:list`
-- Authentication and authorization handling (coming soon)
-- Rate limiting and throttling (coming soon)
-- Caching and response caching (coming soon)
+- Secure by default: sensitive client headers stripped before forwarding
+- Auth helper traits: Bearer token, API key, HMAC signing
+- Inbound request validation via Laravel's built-in validator
+- Response caching for GET/HEAD routes
+- Automatic retry with configurable backoff
+- Streaming response support for large payloads
+- Laravel event hooks around every proxy call
+- Connectivity health check via `passage:health`
 
 ## Requirements
 
@@ -124,53 +129,35 @@ Passage::get('github/{path?}', GithubPassageController::class)
 
 ### Creating a Passage handler
 
-Every Passage route requires a handler class that implements `PassageControllerInterface`. Generate one with:
+Every Passage route requires a handler class. Generate one with:
 
 ```bash
 php artisan passage:controller GithubPassageController
 ```
 
-This creates `app/Http/Controllers/Passages/GithubPassageController.php`. Implement the three required methods:
+This creates `app/Http/Controllers/Passages/GithubPassageController.php` extending `PassageHandler`:
 
 ```php
-use Illuminate\Http\Client\Response;
-use Illuminate\Http\Request;
-use Morcen\Passage\PassageControllerInterface;
+use Morcen\Passage\PassageHandler;
 
-class GithubPassageController implements PassageControllerInterface
+class GithubPassageController extends PassageHandler
 {
-    /**
-     * The upstream base URI and any Guzzle options for this service.
-     * See https://docs.guzzlephp.org/en/stable/request-options.html
-     */
     public function getOptions(): array
     {
         return [
             'base_uri' => 'https://api.github.com/',
         ];
     }
-
-    /**
-     * Transform or validate the request before it is forwarded upstream.
-     * Return the request unchanged to pass it through as-is.
-     */
-    public function getRequest(Request $request): Request
-    {
-        // Example: inject an auth token
-        $request->headers->set('Authorization', 'Bearer '.config('services.github.token'));
-        return $request;
-    }
-
-    /**
-     * Transform or validate the upstream response before it is returned to the client.
-     * Return the response unchanged to pass it through as-is.
-     */
-    public function getResponse(Request $request, Response $response): Response
-    {
-        return $response;
-    }
 }
 ```
+
+You only need to override the methods relevant to your handler. All three interface methods have no-op defaults in `PassageHandler`:
+
+- `getOptions(): array` — upstream base URI and any Guzzle options
+- `getRequest(Request $request): Request` — transform or add credentials before forwarding
+- `getResponse(Request $request, Response $response): Response` — transform the upstream response
+
+If you prefer to implement the interface directly without the base class, implement `PassageControllerInterface` instead.
 
 > **Note:** The `base_uri` must end with a trailing slash `/`, otherwise sub-path forwarding may not work correctly.
 
@@ -200,6 +187,346 @@ Set `PASSAGE_ENABLED=false` in your `.env` to disable all Passage proxying witho
 ```env
 PASSAGE_ENABLED=false
 ```
+
+---
+
+## Security
+
+### Header stripping
+
+Passage strips sensitive client-origin headers before forwarding requests upstream. By default, `cookie`, `authorization`, and `proxy-authorization` are removed from every incoming request. This prevents client credentials from leaking to upstream services.
+
+Handlers can re-add credentials from your own config inside `getRequest()`:
+
+```php
+public function getRequest(Request $request): Request
+{
+    $request->headers->set('Authorization', 'Bearer '.config('services.github.token'));
+    return $request;
+}
+```
+
+To change which headers are stripped globally, edit `config/passage.php`:
+
+```php
+'security' => [
+    'strip_client_headers' => ['cookie', 'authorization', 'proxy-authorization'],
+],
+```
+
+### Forwarding a client header on a specific route
+
+If a route legitimately needs to forward a specific client header (for example, forwarding a client's `Authorization` to an upstream that validates it), implement `AcceptsClientHeaders` on the handler:
+
+```php
+use Morcen\Passage\Contracts\AcceptsClientHeaders;
+use Morcen\Passage\PassageHandler;
+
+class RelayHandler extends PassageHandler implements AcceptsClientHeaders
+{
+    public function allowedClientHeaders(): array
+    {
+        return ['authorization'];
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.partner.com/'];
+    }
+}
+```
+
+The listed headers bypass the strip policy only for that handler. All other handlers continue to strip them.
+
+### Allowed hosts guard
+
+To prevent a misconfigured handler from proxying to an unintended host, enable the allowed hosts guard:
+
+```env
+PASSAGE_ENFORCE_ALLOWED_HOSTS=true
+```
+
+Then list the permitted upstream hostnames in `config/passage.php`:
+
+```php
+'security' => [
+    'enforce_allowed_hosts' => true,
+    'allowed_hosts' => ['api.github.com', 'api.stripe.com'],
+],
+```
+
+Any handler whose `base_uri` resolves to a host not in the list will throw `DisallowedProxyTargetException` instead of forwarding the request.
+
+### Aborting a request from a handler
+
+To abort a request early with a specific HTTP status, throw `PassageRequestAbortedException` inside `getRequest()`:
+
+```php
+use Morcen\Passage\Exceptions\PassageRequestAbortedException;
+
+public function getRequest(Request $request): Request
+{
+    if (! $this->isAllowed($request)) {
+        throw new PassageRequestAbortedException('Access denied.', 403);
+    }
+    return $request;
+}
+```
+
+Passage catches this exception and returns a JSON error response with the given status code.
+
+### Inbound validation
+
+To validate the incoming request before it is forwarded, implement `ValidatesInboundRequest` and declare Laravel validation rules:
+
+```php
+use Morcen\Passage\Contracts\ValidatesInboundRequest;
+use Morcen\Passage\PassageHandler;
+
+class CreateOrderHandler extends PassageHandler implements ValidatesInboundRequest
+{
+    public function rules(): array
+    {
+        return [
+            'product_id' => ['required', 'integer'],
+            'quantity'   => ['required', 'integer', 'min:1'],
+        ];
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://orders.example.com/'];
+    }
+}
+```
+
+Validation runs before `getRequest()`. If it fails, a 422 response is returned and the upstream is never called.
+
+### Rate limiting
+
+Passage routes are real Laravel routes, so the built-in `throttle` middleware works directly:
+
+```php
+Passage::post('orders/{path?}', CreateOrderHandler::class)
+    ->middleware('throttle:60,1');
+```
+
+---
+
+## Auth helpers
+
+`PassageHandler` includes three built-in auth traits. Use them inside `getRequest()` to inject credentials:
+
+### Bearer token
+
+```php
+use Morcen\Passage\PassageHandler;
+
+class GithubHandler extends PassageHandler
+{
+    public function getRequest(Request $request): Request
+    {
+        return $this->withBearerToken($request, config('services.github.token'));
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.github.com/'];
+    }
+}
+```
+
+Generate a handler pre-scaffolded for Bearer auth:
+
+```bash
+php artisan passage:controller GithubHandler --with-auth=bearer
+```
+
+### API key
+
+```php
+public function getRequest(Request $request): Request
+{
+    // Inject as a header (default: X-API-Key)
+    return $this->withApiKey($request, config('services.stripe.key'));
+
+    // Or inject as a query parameter
+    return $this->withApiKeyQuery($request, config('services.stripe.key'), 'api_key');
+
+    // Or use a custom header name
+    return $this->withApiKey($request, config('services.stripe.key'), 'X-Stripe-Key');
+}
+```
+
+```bash
+php artisan passage:controller StripeHandler --with-auth=apikey
+```
+
+### HMAC signing
+
+```php
+public function getRequest(Request $request): Request
+{
+    return $this->withHmacSignature($request, config('services.partner.secret'));
+}
+```
+
+This signs the request body and a timestamp using HMAC-SHA256 and adds `X-Timestamp` and `X-Signature` headers to the outgoing request.
+
+```bash
+php artisan passage:controller PartnerHandler --with-auth=hmac
+```
+
+---
+
+## Resilience
+
+### Retry
+
+Add automatic retry by returning `passage_retry_times` (and optionally `passage_retry_sleep_ms`) from `getOptions()`, or use the `withRetry()` helper from `HasResilienceOptions`:
+
+```php
+use Morcen\Passage\PassageHandler;
+
+class PaymentsHandler extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return array_merge(
+            ['base_uri' => 'https://payments.example.com/'],
+            $this->withRetry(3, 200),
+        );
+    }
+}
+```
+
+```bash
+php artisan passage:controller PaymentsHandler --with-retry
+```
+
+`withRetry($times, $sleepMs, ?callable $when)` accepts an optional third argument — a callable that receives the exception and response and returns `true` if the request should be retried.
+
+### Upstream error handling
+
+Passage maps transport-layer failures to appropriate HTTP status codes automatically:
+
+| Cause | Status |
+|---|---|
+| Connection refused / DNS failure | 502 Bad Gateway |
+| Timeout | 504 Gateway Timeout |
+| Too many redirects | 502 Bad Gateway |
+| Unexpected exception | 500 Internal Server Error |
+
+Upstream 4xx and 5xx responses are passed through unchanged.
+
+---
+
+## Caching
+
+GET and HEAD responses can be cached per-route. Return `passage_cache_ttl` (seconds) from `getOptions()`:
+
+```php
+public function getOptions(): array
+{
+    return [
+        'base_uri'          => 'https://api.example.com/',
+        'passage_cache_ttl' => 60,
+    ];
+}
+```
+
+```bash
+php artisan passage:controller ExampleHandler --with-cache
+```
+
+The cache store used defaults to Laravel's default cache driver. To use a specific store, set it in `config/passage.php`:
+
+```php
+'cache' => [
+    'store' => 'redis',
+],
+```
+
+Or via environment variable:
+
+```env
+PASSAGE_CACHE_STORE=redis
+```
+
+---
+
+## Streaming
+
+For large or long-running upstream responses, enable streaming so Passage does not buffer the full response body in memory:
+
+```php
+public function getOptions(): array
+{
+    return [
+        'base_uri'          => 'https://files.example.com/',
+        'passage_streaming' => true,
+    ];
+}
+```
+
+When streaming is enabled, the `getResponse()` transformation hook is skipped (the response body has not been read yet). The Content-Type and other upstream headers are still passed through.
+
+---
+
+## Observability
+
+### Events
+
+Passage fires three Laravel events around every proxy call:
+
+| Event | When |
+|---|---|
+| `PassageRequestSending` | Before the upstream call |
+| `PassageResponseReceived` | After a successful response |
+| `PassageRequestFailed` | After a transport error |
+
+To log all Passage activity, register `PassageEventSubscriber` in your `EventServiceProvider`:
+
+```php
+use Morcen\Passage\Listeners\PassageEventSubscriber;
+
+protected $subscribe = [
+    PassageEventSubscriber::class,
+];
+```
+
+This subscriber logs to a `passage` channel at `info` level (request/response) and `error` level (failures).
+
+To disable events:
+
+```env
+PASSAGE_EVENTS=false
+```
+
+### Health check
+
+Ping the `base_uri` of every registered Passage route and see connectivity status:
+
+```bash
+php artisan passage:health
+```
+
+Useful in CI pipelines and post-deployment checks. Use `--timeout=10` to adjust the per-route probe timeout (default: 5 seconds).
+
+---
+
+## Production checklist
+
+Before deploying Passage in production:
+
+- [ ] Set `PASSAGE_ENFORCE_ALLOWED_HOSTS=true` and list all permitted upstream hosts in `config/passage.php`
+- [ ] Confirm that sensitive headers (`cookie`, `authorization`) are NOT being forwarded unless intentional (check `strip_client_headers`)
+- [ ] Apply `throttle` middleware to any publicly accessible Passage routes
+- [ ] Set `PASSAGE_TIMEOUT` and `PASSAGE_CONNECT_TIMEOUT` appropriate for your upstream services (default: 30s / 10s)
+- [ ] Enable retry (`passage_retry_times`) for routes calling unreliable upstream services
+- [ ] Enable caching (`passage_cache_ttl`) for high-traffic read-only routes
+- [ ] Register `PassageEventSubscriber` and configure a `passage` log channel for observability
+- [ ] Run `php artisan passage:health` as a post-deployment check
 
 ---
 

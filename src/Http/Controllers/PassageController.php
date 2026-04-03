@@ -2,10 +2,13 @@
 
 namespace Morcen\Passage\Http\Controllers;
 
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Morcen\Passage\Contracts\AcceptsClientHeaders;
+use Morcen\Passage\Contracts\ValidatesInboundRequest;
 use Morcen\Passage\Events\PassageRequestFailed;
 use Morcen\Passage\Events\PassageRequestSending;
 use Morcen\Passage\Events\PassageResponseReceived;
@@ -37,6 +40,7 @@ class PassageController extends Controller
         protected readonly AllowedHostsGuard $allowedHostsGuard,
         protected readonly PassageCacheManager $cacheManager,
         protected readonly PassageErrorHandler $errorHandler,
+        protected readonly Application $app,
     ) {}
 
     public function handle(Request $request): Response
@@ -51,7 +55,7 @@ class PassageController extends Controller
             return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $handlerInstance = new $handler;
+        $handlerInstance = $this->app->make($handler);
         $mergedOptions = array_merge(config('passage.options', []), $handlerInstance->getOptions());
 
         if (empty($mergedOptions['base_uri'])) {
@@ -73,9 +77,20 @@ class PassageController extends Controller
             );
         }
 
-        // Strip sensitive client headers before the handler processes the request.
+        // Strip sensitive client headers, but honour AcceptsClientHeaders overrides.
+        $allowedClientHeaders = $handlerInstance instanceof AcceptsClientHeaders
+            ? array_map('strtolower', $handlerInstance->allowedClientHeaders())
+            : [];
+
         foreach (config('passage.security.strip_client_headers', []) as $header) {
-            $request->headers->remove($header);
+            if (! in_array(strtolower($header), $allowedClientHeaders, strict: true)) {
+                $request->headers->remove($header);
+            }
+        }
+
+        // Run validation before transformation if the handler declares rules.
+        if ($handlerInstance instanceof ValidatesInboundRequest) {
+            $request->validate($handlerInstance->rules());
         }
 
         try {

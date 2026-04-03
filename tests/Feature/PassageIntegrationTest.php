@@ -1,23 +1,59 @@
 <?php
 
-use Illuminate\Http\Client\Response;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Morcen\Passage\Contracts\AcceptsClientHeaders;
+use Morcen\Passage\Contracts\ValidatesInboundRequest;
 use Morcen\Passage\Facades\Passage;
 use Morcen\Passage\Http\Controllers\PassageController;
-use Morcen\Passage\PassageControllerInterface;
-use Morcen\Passage\Services\PassageServiceInterface;
+use Morcen\Passage\PassageHandler;
 
-class IntegrationTestPassageController implements PassageControllerInterface
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+class IntegrationTestPassageController extends PassageHandler
 {
-    public function getRequest(Request $request): Request
+    public function getOptions(): array
     {
-        return $request;
+        return ['base_uri' => 'https://api.example.com/'];
+    }
+}
+
+class XmlIntegrationPassageController extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://xml.example.com/'];
+    }
+}
+
+class PlainTextIntegrationPassageController extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://text.example.com/'];
+    }
+}
+
+class AcceptsAuthHeaderHandler extends PassageHandler implements AcceptsClientHeaders
+{
+    public function allowedClientHeaders(): array
+    {
+        return ['authorization'];
     }
 
-    public function getResponse(Request $request, Response $response): Response
+    public function getOptions(): array
     {
-        return $response;
+        return ['base_uri' => 'https://relay.example.com/'];
+    }
+}
+
+class ValidatingHandler extends PassageHandler implements ValidatesInboundRequest
+{
+    public function rules(): array
+    {
+        return ['name' => ['required', 'string']];
     }
 
     public function getOptions(): array
@@ -26,129 +62,115 @@ class IntegrationTestPassageController implements PassageControllerInterface
     }
 }
 
-class XmlIntegrationPassageController implements PassageControllerInterface
-{
-    public function getRequest(Request $request): Request
-    {
-        return $request;
-    }
-
-    public function getResponse(Request $request, Response $response): Response
-    {
-        return $response;
-    }
-
-    public function getOptions(): array
-    {
-        return ['base_uri' => 'https://xml.example.com/'];
-    }
-}
-
-class PlainTextIntegrationPassageController implements PassageControllerInterface
-{
-    public function getRequest(Request $request): Request
-    {
-        return $request;
-    }
-
-    public function getResponse(Request $request, Response $response): Response
-    {
-        return $response;
-    }
-
-    public function getOptions(): array
-    {
-        return ['base_uri' => 'https://text.example.com/'];
-    }
-}
-
-/**
- * Build a mock upstream Response for PassageResponseBuilder to consume.
- */
-function integrationResponse(string $body, int $status, string $contentType): Response
-{
-    $mock = Mockery::mock(Response::class);
-    $mock->shouldReceive('status')->andReturn($status);
-    $mock->shouldReceive('body')->andReturn($body);
-    $mock->shouldReceive('header')->with('Content-Type')->andReturn($contentType);
-    $mock->shouldReceive('headers')->andReturn(['content-type' => [$contentType]]);
-    if (str_contains($contentType, 'application/json')) {
-        $mock->shouldReceive('json')->andReturn(json_decode($body, true));
-    }
-
-    return $mock;
-}
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 describe('Passage Integration Tests', function () {
     beforeEach(function () {
-        config(['passage.enabled' => true]);
-
-        $this->mockService = Mockery::mock(PassageServiceInterface::class);
-        $this->app->instance(PassageServiceInterface::class, $this->mockService);
+        config(['passage.enabled' => true, 'passage.events.enabled' => false]);
     });
 
-    it('registers a GET route and proxies JSON requests', function () {
-        Passage::get('example/{path?}', IntegrationTestPassageController::class);
+    describe('JSON proxying', function () {
+        it('registers a GET route and proxies JSON requests', function () {
+            Http::fake(['https://api.example.com/*' => Http::response(['ok' => true], 200)]);
+            Passage::get('example/{path?}', IntegrationTestPassageController::class);
 
-        $this->mockService->shouldReceive('callService')
-            ->andReturn(integrationResponse('{"ok":true}', 200, 'application/json'));
+            $this->get('/example/users/1')
+                ->assertStatus(200)
+                ->assertJson(['ok' => true]);
 
-        $this->get('/example/users/1')
-            ->assertStatus(200)
-            ->assertJson(['ok' => true]);
+            Http::assertSent(fn ($req) => $req->url() === 'https://api.example.com/users/1');
+        });
+
+        it('registers a POST route and proxies JSON requests', function () {
+            Http::fake(['https://api.example.com/*' => Http::response(['created' => true], 201)]);
+            Passage::post('example/{path?}', IntegrationTestPassageController::class);
+
+            $this->postJson('/example/items', ['name' => 'widget'])
+                ->assertStatus(201)
+                ->assertJson(['created' => true]);
+
+            Http::assertSent(fn ($req) => $req->method() === 'POST');
+        });
     });
 
-    it('registers a POST route and proxies JSON requests', function () {
-        Passage::post('example/{path?}', IntegrationTestPassageController::class);
+    describe('non-JSON response passthrough', function () {
+        it('passes through XML response with correct Content-Type', function () {
+            $xml = '<?xml version="1.0"?><root><id>1</id></root>';
+            Http::fake(['https://xml.example.com/*' => Http::response($xml, 200, ['Content-Type' => 'application/xml'])]);
+            Passage::get('xml/{path?}', XmlIntegrationPassageController::class);
 
-        $this->mockService->shouldReceive('callService')
-            ->andReturn(integrationResponse('{"created":true}', 201, 'application/json'));
+            $response = $this->get('/xml/feed');
+            $response->assertStatus(200);
+            expect($response->headers->get('Content-Type'))->toContain('application/xml');
+            expect($response->getContent())->toBe($xml);
+        });
 
-        $this->post('/example/items', ['name' => 'test'])
-            ->assertStatus(201)
-            ->assertJson(['created' => true]);
+        it('passes through plain text response', function () {
+            Http::fake(['https://text.example.com/*' => Http::response('pong', 200, ['Content-Type' => 'text/plain'])]);
+            Passage::get('text/{path?}', PlainTextIntegrationPassageController::class);
+
+            $response = $this->get('/text/ping');
+            $response->assertStatus(200);
+            expect($response->getContent())->toBe('pong');
+        });
     });
 
-    it('passes through XML response with correct Content-Type', function () {
-        Passage::get('xml/{path?}', XmlIntegrationPassageController::class);
+    describe('AcceptsClientHeaders', function () {
+        it('preserves allowed client headers from the strip policy', function () {
+            Http::fake(['https://relay.example.com/*' => Http::response(['ok' => true], 200)]);
+            Passage::get('relay/{path?}', AcceptsAuthHeaderHandler::class);
 
-        $xmlBody = '<?xml version="1.0"?><root><id>1</id></root>';
-        $this->mockService->shouldReceive('callService')
-            ->andReturn(integrationResponse($xmlBody, 200, 'application/xml'));
+            $this->withHeaders(['Authorization' => 'Bearer client-token'])
+                ->get('/relay/resource')
+                ->assertStatus(200);
 
-        $response = $this->get('/xml/feed');
-        $response->assertStatus(200);
-        expect($response->headers->get('Content-Type'))->toContain('application/xml');
-        expect($response->getContent())->toBe($xmlBody);
+            // The Authorization header should have been forwarded upstream
+            Http::assertSent(fn ($req) => $req->hasHeader('Authorization', 'Bearer client-token'));
+        });
     });
 
-    it('passes through plain text response', function () {
-        Passage::get('text/{path?}', PlainTextIntegrationPassageController::class);
+    describe('ValidatesInboundRequest', function () {
+        it('returns 422 when validation fails before forwarding', function () {
+            Http::fake(); // Should not be called
+            Passage::post('validated/{path?}', ValidatingHandler::class);
 
-        $this->mockService->shouldReceive('callService')
-            ->andReturn(integrationResponse('pong', 200, 'text/plain'));
+            $this->postJson('/validated/items', [])
+                ->assertStatus(422);
 
-        $response = $this->get('/text/ping');
-        $response->assertStatus(200);
-        expect($response->getContent())->toBe('pong');
+            Http::assertNothingSent();
+        });
+
+        it('forwards request when validation passes', function () {
+            Http::fake(['https://api.example.com/*' => Http::response(['ok' => true], 200)]);
+            Passage::post('validated/{path?}', ValidatingHandler::class);
+
+            $this->postJson('/validated/items', ['name' => 'widget'])
+                ->assertStatus(200);
+
+            Http::assertSent(fn ($req) => $req->method() === 'POST');
+        });
     });
 
-    it('returns 404 for a passage route with a missing handler', function () {
-        Route::get('broken/{path?}', [
-            PassageController::class, 'handle',
-        ])->where('path', '.*');
+    describe('route registration', function () {
+        it('returns 404 for a passage route with a missing handler', function () {
+            Route::get('broken/{path?}', [
+                PassageController::class, 'handle',
+            ])->where('path', '.*');
 
-        $this->get('/broken/anything')
-            ->assertStatus(404)
-            ->assertJson(['error' => 'Route not found']);
-    });
+            $this->get('/broken/anything')
+                ->assertStatus(404)
+                ->assertJson(['error' => 'Route not found']);
+        });
 
-    it('passage routes appear in the route collection', function () {
-        Passage::get('listed/{path?}', IntegrationTestPassageController::class);
+        it('passage routes appear in the route collection', function () {
+            Passage::get('listed/{path?}', IntegrationTestPassageController::class);
 
-        $routes = collect(Route::getRoutes())
-            ->filter(fn ($r) => str_contains($r->uri(), 'listed'));
+            $routes = collect(Route::getRoutes())
+                ->filter(fn ($r) => str_contains($r->uri(), 'listed'));
 
-        expect($routes)->not->toBeEmpty();
+            expect($routes)->not->toBeEmpty();
+        });
     });
 });

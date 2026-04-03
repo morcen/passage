@@ -132,10 +132,10 @@ describe('PassageService::callService()', function () {
             $pending->shouldReceive('withHeaders')
                 ->once()
                 ->withArgs(function (array $headers) {
-                    return ! array_key_exists('connection', $headers)
-                        && ! array_key_exists('transfer-encoding', $headers)
-                        && ! array_key_exists('upgrade', $headers)
-                        && array_key_exists('x-custom', $headers);
+                    return ! array_key_exists('Connection', $headers)
+                        && ! array_key_exists('Transfer-Encoding', $headers)
+                        && ! array_key_exists('Upgrade', $headers)
+                        && array_key_exists('X-Custom', $headers);
                 })
                 ->andReturn($pending);
             $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
@@ -152,7 +152,7 @@ describe('PassageService::callService()', function () {
             $pending->shouldReceive('withHeaders')
                 ->once()
                 ->withArgs(function (array $headers) {
-                    return isset($headers['x-request-id']) && isset($headers['x-tenant']);
+                    return isset($headers['X-Request-Id']) && isset($headers['X-Tenant']);
                 })
                 ->andReturn($pending);
             $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
@@ -170,7 +170,7 @@ describe('PassageService::callService()', function () {
             $pending = Mockery::mock(PendingRequest::class);
             $pending->shouldReceive('withHeaders')
                 ->once()
-                ->withArgs(fn (array $h) => ($h['authorization'] ?? null) === 'Bearer service-token')
+                ->withArgs(fn (array $h) => ($h['Authorization'] ?? null) === 'Bearer service-token')
                 ->andReturn($pending);
             $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
 
