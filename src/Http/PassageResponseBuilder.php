@@ -4,6 +4,7 @@ namespace Morcen\Passage\Http;
 
 use Illuminate\Http\Client\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PassageResponseBuilder
 {
@@ -33,6 +34,35 @@ class PassageResponseBuilder
 
         foreach ($headers as $name => $value) {
             $response->header($name, $value);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Build a StreamedResponse, reading from the upstream PSR-7 body stream.
+     *
+     * Note: The getResponse() handler hook is NOT called for streamed responses —
+     * the body cannot be inspected before it is sent.
+     */
+    public function buildStreamedResponse(Response $upstream): StreamedResponse
+    {
+        $status = $upstream->status();
+        $headers = $this->resolveResponseHeaders($upstream);
+        $stream = $upstream->toPsrResponse()->getBody();
+
+        $response = new StreamedResponse(
+            function () use ($stream) {
+                while (! $stream->eof()) {
+                    echo $stream->read(4096);
+                    flush();
+                }
+            },
+            $status
+        );
+
+        foreach ($headers as $name => $value) {
+            $response->headers->set($name, $value);
         }
 
         return $response;

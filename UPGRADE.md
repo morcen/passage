@@ -1,113 +1,105 @@
 # Upgrade Guide
 
+## Upgrading from v2.x to v3.0
+
+v3.0 is a breaking release. The config-based service array and the `Route::passage()` macro have been removed in favour of explicit route registration using the `Passage` facade.
+
+### Breaking Changes
+
+#### 1. `config/passage.php` — `services` array removed
+
+The `services` array is no longer read by Passage. Remove it from your config file.
+
+**Before:**
+```php
+// config/passage.php
+'services' => [
+    'github' => App\Http\Controllers\Passages\GithubPassageController::class,
+],
+```
+
+**After:** delete the `services` key entirely. Routes are registered directly (see below).
+
+#### 2. `Route::passage()` macro removed
+
+The `Route::passage()` macro no longer exists.
+
+**Before:**
+```php
+Route::passage('github');
+```
+
+**After:** register routes explicitly using the `Passage` facade:
+```php
+use Morcen\Passage\Facades\Passage;
+
+Passage::get('github/{path?}', GithubPassageController::class);
+Passage::post('github/{path?}', GithubPassageController::class);
+// or cover all methods at once:
+Passage::any('github/{path?}', GithubPassageController::class);
+```
+
+Passage routes return a standard Laravel `Route` instance, so you can chain `.name()`, `.middleware()`, and other route methods as usual.
+
+#### 3. Array-based handler configuration removed
+
+Handlers must be dedicated classes implementing `PassageControllerInterface`. Anonymous arrays or closures are no longer accepted.
+
+#### 4. Handler `getOptions()` must return `base_uri`
+
+Every handler must return at minimum a `base_uri` from `getOptions()`. Passage will throw `InvalidBaseUriException` at request time if it is missing.
+
+```php
+public function getOptions(): array
+{
+    return [
+        'base_uri' => 'https://api.example.com/',
+    ];
+}
+```
+
+### Migration Steps
+
+1. Remove the `services` array from `config/passage.php`.
+2. Replace every `Route::passage('service-name')` call with `Passage::get/post/any(...)`.
+3. Ensure each handler class implements `PassageControllerInterface` and returns a `base_uri` from `getOptions()`.
+4. Run `php artisan passage:list` to confirm your routes are registered correctly.
+5. Run your test suite: `php artisan test`.
+
+### Generating New Handlers
+
+```bash
+php artisan passage:controller YourServiceName
+```
+
+The generated stub includes all three required interface methods with inline guidance.
+
+---
+
 ## Upgrading from v1.x to v2.0
 
 ### Requirements Changes
 
-**Before (v1.x):**
-- PHP 8.1+
-- Laravel 8.x+
-
-**After (v2.0):**
-- PHP 8.2+ (8.3+ recommended)
-- Laravel 11.x+
+| | v1.x | v2.0 |
+|---|---|---|
+| PHP | 8.1+ | 8.2+ |
+| Laravel | 8.x+ | 11.x+ |
 
 ### Breaking Changes
 
-#### 1. Minimum PHP Version
-The minimum PHP version has been upgraded from **8.1** to **8.2**. While we recommend PHP 8.3+ for the best experience, PHP 8.2 is the minimum requirement.
-
-#### 2. Minimum Laravel Version
-The minimum Laravel version has been upgraded from **8.x** to **11.x**. This provides access to the latest Laravel features and security updates.
-
-#### 3. Updated Dependencies
-All development dependencies have been updated to their latest versions compatible with Laravel 11:
-
-- `spatie/laravel-package-tools`: ^1.16.0 (from ^1.14.0)
-- `illuminate/contracts`: ^11.0 (from ^10.0)
-- `pestphp/pest`: ^2.35.0 (from ^2.0)
-- And many more...
-
-### What's Improved
-
-#### 1. Modern PHP Features
-- Enhanced readonly properties for better immutability
-- Better type safety with modern PHP features
-- Performance improvements from PHP 8.2/8.3 features
-
-#### 2. Comprehensive Test Suite
-- 31 tests with 103 assertions
-- All core functionality tested
-- Removed flaky integration tests with Guzzle dependencies
-
-#### 3. Better Developer Experience
-- Updated PHPStan configuration for better static analysis
-- Latest Laravel Pint for code formatting
-- Modern Pest testing framework
-- Enhanced GitHub Actions workflows with matrix testing
-- Security audit automation
-- Automated dependency management
+- Minimum PHP raised to **8.2**.
+- Minimum Laravel raised to **11.x**.
+- All dev dependencies updated to Laravel 11-compatible versions.
 
 ### Migration Steps
 
-#### 1. Check System Requirements
-Ensure your system meets the new requirements:
+1. Upgrade PHP to 8.2+.
+2. Upgrade Laravel to 11.x (`composer update laravel/framework`).
+3. Update Passage: `composer update morcen/passage`.
+4. Run your tests: `php artisan test`.
 
-```bash
-php -v  # Should show PHP 8.2+
-```
+No API or configuration changes were required between v1 and v2.
 
-#### 2. Update Your Laravel Project
-If your Laravel application is not yet on Laravel 11, upgrade it first:
+---
 
-```bash
-composer update laravel/framework
-```
-
-#### 3. Update Passage
-Update the package to v2.0:
-
-```bash
-composer update morcen/passage
-```
-
-#### 4. Run Tests
-Ensure your application still works correctly:
-
-```bash
-php artisan test
-```
-
-### Configuration Changes
-
-No configuration changes are required. All existing `config/passage.php` configurations remain compatible.
-
-### API Changes
-
-There are **no breaking API changes**. All existing:
-- Service configurations
-- Custom controllers implementing `PassageControllerInterface`  
-- Route macros
-- Facade usage
-
-...will continue to work exactly as before.
-
-### Deprecations
-
-None. This is a clean upgrade focused on modernizing the underlying platform requirements.
-
-### Rollback Plan
-
-If you need to rollback for any reason:
-
-```bash
-composer require "morcen/passage:^1.0"
-```
-
-Note that this will also require downgrading your PHP/Laravel versions to meet the v1.x requirements.
-
-### Support
-
-- v1.x will receive security updates for 6 months after v2.0 release
-- v2.0+ receives full feature and security support
-- For issues, please file them on [GitHub](https://github.com/morcen/passage/issues)
+For issues, please file them on [GitHub](https://github.com/morcen/passage/issues).

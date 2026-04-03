@@ -95,4 +95,37 @@ return [
             'keep-alive', 'te', 'trailer', 'proxy-authenticate',
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Passage Response Cache
+    |--------------------------------------------------------------------------
+    |
+    | GET and HEAD responses can be cached per-route by returning
+    | passage_cache_ttl (seconds) from a handler's getOptions().
+    |
+    | Uses Laravel's Cache facade with the store configured below.
+    | null = use the application's default cache store.
+    |
+    */
+
+    'cache' => [
+        'store' => env('PASSAGE_CACHE_STORE', null),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Passage Events
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Passage fires Laravel events around each proxy call:
+    |   PassageRequestSending, PassageResponseReceived, PassageRequestFailed
+    |
+    | Register PassageEventSubscriber in your EventServiceProvider to log them.
+    |
+    */
+
+    'events' => [
+        'enabled' => env('PASSAGE_EVENTS', true),
+    ],
 ];
