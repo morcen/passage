@@ -126,6 +126,7 @@ beforeEach(function () {
         new AllowedHostsGuard,
         new PassageCacheManager,
         new PassageErrorHandler,
+        app(),
     );
 });
 

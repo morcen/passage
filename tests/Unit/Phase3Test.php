@@ -74,6 +74,7 @@ function phase3Controller(): PassageController
         new AllowedHostsGuard,
         new PassageCacheManager,
         new PassageErrorHandler,
+        app(),
     );
 }
 

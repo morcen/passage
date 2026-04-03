@@ -73,7 +73,10 @@ class PassageService implements PassageServiceInterface
             if (in_array(strtolower($name), $hopByHop, strict: true)) {
                 continue;
             }
-            $headers[$name] = implode(', ', $values);
+            // Convert to HTTP title-case (e.g. authorization → Authorization,
+            // x-request-id → X-Request-Id) so header key lookups work correctly.
+            $titleName = implode('-', array_map('ucfirst', explode('-', $name)));
+            $headers[$titleName] = implode(', ', $values);
         }
 
         return $headers;
