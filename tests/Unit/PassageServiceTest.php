@@ -9,95 +9,172 @@ beforeEach(function () {
     $this->service = new PassageService;
 });
 
-describe('PassageService', function () {
-    it('can set and get method', function () {
-        $this->service->setMethod('POST');
-        expect($this->service->getMethod())->toBe('POST');
-    });
+/**
+ * Helper: build a mock PendingRequest that expects withHeaders() and returns itself.
+ */
+function mockPending(): PendingRequest
+{
+    $mock = Mockery::mock(PendingRequest::class);
+    $mock->shouldReceive('withHeaders')->once()->andReturn($mock);
 
-    it('can set and get headers', function () {
-        $headers = ['Authorization' => 'Bearer token', 'Content-Type' => 'application/json'];
-        $this->service->setHeaders($headers);
-        expect($this->service->getHeaders())->toBe($headers);
-    });
+    return $mock;
+}
 
-    it('can set and get params', function () {
-        $params = ['key' => 'value', 'foo' => 'bar'];
-        $this->service->setParams($params);
-        expect($this->service->getParams())->toBe($params);
-    });
-
-    it('starts with empty headers array', function () {
-        expect($this->service->getHeaders())->toBe([]);
-    });
-
-    it('starts with empty params array', function () {
-        expect($this->service->getParams())->toBe([]);
-    });
-
-    describe('callService', function () {
-        it('calls the correct HTTP method with parameters', function () {
-            $request = Request::create('/test', 'POST', ['param1' => 'value1', 'param2' => 'value2']);
-
-            $mockPendingRequest = Mockery::mock(PendingRequest::class);
+describe('PassageService::callService()', function () {
+    describe('GET requests', function () {
+        it('forwards query parameters', function () {
+            $request = Request::create('/test?page=2&limit=10', 'GET');
             $mockResponse = Mockery::mock(Response::class);
-
-            $mockPendingRequest->shouldReceive('post')
+            $pending = mockPending();
+            $pending->shouldReceive('get')
                 ->once()
-                ->with('test/uri', ['param1' => 'value1', 'param2' => 'value2'])
+                ->with('items', ['page' => '2', 'limit' => '10'])
                 ->andReturn($mockResponse);
 
-            $result = $this->service->callService($request, $mockPendingRequest, 'test/uri');
-
-            expect($result)->toBe($mockResponse);
+            expect($this->service->callService($request, $pending, 'items'))->toBe($mockResponse);
         });
 
-        it('handles GET requests correctly', function () {
-            $request = Request::create('/test?query=param', 'GET');
-
-            $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        it('handles GET with no query params', function () {
+            $request = Request::create('/test', 'GET');
             $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('get')->once()->with('items', [])->andReturn($mockResponse);
 
-            $mockPendingRequest->shouldReceive('get')
+            expect($this->service->callService($request, $pending, 'items'))->toBe($mockResponse);
+        });
+    });
+
+    describe('POST requests', function () {
+        it('sends form-urlencoded body with asForm()', function () {
+            $request = Request::create('/test', 'POST', ['name' => 'Alice', 'role' => 'admin']);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('asForm')->once()->andReturn($pending);
+            $pending->shouldReceive('post')
                 ->once()
-                ->with('test/uri', ['query' => 'param'])
+                ->with('users', ['name' => 'Alice', 'role' => 'admin'])
                 ->andReturn($mockResponse);
 
-            $result = $this->service->callService($request, $mockPendingRequest, 'test/uri');
-
-            expect($result)->toBe($mockResponse);
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
         });
 
-        it('handles PUT requests correctly', function () {
-            $request = Request::create('/test', 'PUT', ['data' => 'test']);
-
-            $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        it('sends JSON body with withBody() when Content-Type is application/json', function () {
+            $body = json_encode(['name' => 'Alice']);
+            $request = Request::create('/test', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);
             $mockResponse = Mockery::mock(Response::class);
-
-            $mockPendingRequest->shouldReceive('put')
+            $pending = mockPending();
+            $pending->shouldReceive('withBody')
                 ->once()
-                ->with('test/uri', ['data' => 'test'])
+                ->with($body, 'application/json')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
+        });
+
+        it('separates query params from JSON body', function () {
+            $body = json_encode(['name' => 'Alice']);
+            $request = Request::create('/test?dry_run=1', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('withQueryParameters')
+                ->once()
+                ->with(['dry_run' => '1'])
+                ->andReturn($pending);
+            $pending->shouldReceive('withBody')
+                ->once()
+                ->with($body, 'application/json')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
+        });
+    });
+
+    describe('PUT requests', function () {
+        it('sends form body for PUT', function () {
+            $request = Request::create('/test', 'PUT', ['status' => 'active']);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('asForm')->once()->andReturn($pending);
+            $pending->shouldReceive('put')
+                ->once()
+                ->with('users/1', ['status' => 'active'])
                 ->andReturn($mockResponse);
 
-            $result = $this->service->callService($request, $mockPendingRequest, 'test/uri');
-
-            expect($result)->toBe($mockResponse);
+            expect($this->service->callService($request, $pending, 'users/1'))->toBe($mockResponse);
         });
+    });
 
-        it('handles DELETE requests correctly', function () {
+    describe('DELETE requests', function () {
+        it('sends DELETE with no body', function () {
+            // Request::create() auto-sets application/x-www-form-urlencoded for DELETE.
+            // With no params, asForm() is called with an empty array — harmless but expected.
             $request = Request::create('/test', 'DELETE');
-
-            $mockPendingRequest = Mockery::mock(PendingRequest::class);
             $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('asForm')->once()->andReturn($pending);
+            $pending->shouldReceive('delete')->once()->with('users/1', [])->andReturn($mockResponse);
 
-            $mockPendingRequest->shouldReceive('delete')
+            expect($this->service->callService($request, $pending, 'users/1'))->toBe($mockResponse);
+        });
+    });
+
+    describe('header forwarding', function () {
+        it('strips hop-by-hop headers', function () {
+            $request = Request::create('/test', 'GET');
+            $request->headers->set('Connection', 'keep-alive');
+            $request->headers->set('Transfer-Encoding', 'chunked');
+            $request->headers->set('Upgrade', 'websocket');
+            $request->headers->set('X-Custom', 'keep-me');
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
                 ->once()
-                ->with('test/uri', [])
-                ->andReturn($mockResponse);
+                ->withArgs(function (array $headers) {
+                    return ! array_key_exists('connection', $headers)
+                        && ! array_key_exists('transfer-encoding', $headers)
+                        && ! array_key_exists('upgrade', $headers)
+                        && array_key_exists('x-custom', $headers);
+                })
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
 
-            $result = $this->service->callService($request, $mockPendingRequest, 'test/uri');
+            $this->service->callService($request, $pending, 'test');
+        });
 
-            expect($result)->toBe($mockResponse);
+        it('forwards custom application headers', function () {
+            $request = Request::create('/test', 'GET');
+            $request->headers->set('X-Request-Id', 'abc-123');
+            $request->headers->set('X-Tenant', 'acme');
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(function (array $headers) {
+                    return isset($headers['x-request-id']) && isset($headers['x-tenant']);
+                })
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
+        });
+
+        it('forwards Authorization if the handler set it (sensitive headers stripped upstream in PassageController)', function () {
+            // By the time callService() is called, PassageController has already stripped
+            // the original client Authorization. This simulates a handler that re-added it
+            // with a service-level credential.
+            $request = Request::create('/test', 'GET');
+            $request->headers->set('Authorization', 'Bearer service-token');
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $h) => ($h['authorization'] ?? null) === 'Bearer service-token')
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
         });
     });
 });
