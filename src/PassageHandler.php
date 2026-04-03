@@ -32,7 +32,7 @@ use Morcen\Passage\Concerns\HasHmacAuth;
  */
 abstract class PassageHandler implements PassageControllerInterface
 {
-    use HasBearerAuth, HasApiKeyAuth, HasHmacAuth;
+    use HasApiKeyAuth, HasBearerAuth, HasHmacAuth;
 
     public function getRequest(Request $request): Request
     {

@@ -2,9 +2,7 @@
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
-use Morcen\Passage\Concerns\HasApiKeyAuth;
-use Morcen\Passage\Concerns\HasBearerAuth;
-use Morcen\Passage\Concerns\HasHmacAuth;
+use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\PassageHandler;
 
 // Concrete handler using PassageHandler base class
@@ -194,7 +192,8 @@ describe('HasHmacAuth', function () {
 
 describe('PassageHandler base class', function () {
     it('provides no-op defaults for all three interface methods', function () {
-        $handler = new class extends PassageHandler {
+        $handler = new class extends PassageHandler
+        {
             public function getOptions(): array
             {
                 return ['base_uri' => 'https://api.example.com/'];
@@ -208,13 +207,14 @@ describe('PassageHandler base class', function () {
     });
 
     it('implements PassageControllerInterface', function () {
-        $handler = new class extends PassageHandler {
+        $handler = new class extends PassageHandler
+        {
             public function getOptions(): array
             {
                 return ['base_uri' => 'https://api.example.com/'];
             }
         };
 
-        expect($handler)->toBeInstanceOf(\Morcen\Passage\PassageControllerInterface::class);
+        expect($handler)->toBeInstanceOf(PassageControllerInterface::class);
     });
 });

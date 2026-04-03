@@ -329,13 +329,22 @@ describe('PassageController', function () {
     describe('PassageRequestAbortedException', function () {
         it('returns a formatted JSON error when handler throws PassageRequestAbortedException', function () {
             // Inline handler that aborts
-            $abortingHandler = new class implements PassageControllerInterface {
+            $abortingHandler = new class implements PassageControllerInterface
+            {
                 public function getRequest(Request $request): Request
                 {
                     throw new PassageRequestAbortedException('Access denied.', 403);
                 }
-                public function getResponse(Request $request, Response $response): Response { return $response; }
-                public function getOptions(): array { return ['base_uri' => 'https://api.example.com/']; }
+
+                public function getResponse(Request $request, Response $response): Response
+                {
+                    return $response;
+                }
+
+                public function getOptions(): array
+                {
+                    return ['base_uri' => 'https://api.example.com/'];
+                }
             };
 
             // Register the anonymous class name dynamically
