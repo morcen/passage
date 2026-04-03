@@ -2,7 +2,6 @@
 
 namespace Morcen\Passage\Http\Controllers;
 
-use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -12,58 +11,29 @@ use Symfony\Component\HttpFoundation\Response as ResponseCode;
 
 class PassageController extends Controller
 {
-    /** @var string */
-    private const URL_SEPARATOR = '/';
-
     public function __construct(
         protected readonly PassageServiceInterface $passageService
     ) {}
 
-    public function index(Request $request): JsonResponse
+    public function handle(Request $request): JsonResponse
     {
-        $uriParts = explode(self::URL_SEPARATOR, $request->path());
+        $handler = $request->route()->defaults['_passage_handler'] ?? null;
+        $path = (string) $request->route('path', '');
 
-        $serviceName = array_shift($uriParts);
-        $uri = implode(self::URL_SEPARATOR, $uriParts);
-
-        if (Http::hasMacro($serviceName)) {
-            $request = $this->getRequest($serviceName, $request);
-            $response = $this->passageService->callService(
-                $request,
-                Http::$serviceName(),
-                $uri
-            );
-
-            return $this->returnResponse($serviceName, $request, $response);
+        if (! $handler
+            || ! class_exists($handler)
+            || ! is_subclass_of($handler, PassageControllerInterface::class)
+        ) {
+            return response()->json(['error' => 'Route not found'], ResponseCode::HTTP_NOT_FOUND);
         }
 
-        return response()->json(['error' => 'Route not found'], ResponseCode::HTTP_NOT_FOUND);
-    }
+        $handlerInstance = new $handler;
+        $options = array_merge(config('passage.options', []), $handlerInstance->getOptions());
+        $pendingRequest = Http::withOptions($options);
 
-    private function getRequest(string $serviceName, Request $request): Request
-    {
-        $handler = config('passage.services.'.$serviceName);
-
-        if (is_string($handler) && class_exists($handler)) {
-            /** @var PassageControllerInterface $handlerController */
-            $handlerController = new $handler;
-
-            $request = $handlerController->getRequest($request);
-        }
-
-        return $request;
-    }
-
-    private function returnResponse(string $serviceName, Request $request, Response $response): JsonResponse
-    {
-        $handler = config('passage.services.'.$serviceName);
-
-        if (is_string($handler) && class_exists($handler)) {
-            /** @var PassageControllerInterface $handlerController */
-            $handlerController = new $handler;
-
-            $response = $handlerController->getResponse($request, $response);
-        }
+        $request = $handlerInstance->getRequest($request);
+        $response = $this->passageService->callService($request, $pendingRequest, $path);
+        $response = $handlerInstance->getResponse($request, $response);
 
         return response()->json($response->json(), $response->status());
     }

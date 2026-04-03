@@ -2,21 +2,46 @@
 
 namespace Morcen\Passage;
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\Http;
-use Morcen\Passage\Exceptions\MissingPassageService;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Route as RouteFacade;
+use Morcen\Passage\Http\Controllers\PassageController;
 
 class Passage
 {
-    /**
-     * @throws MissingPassageService
-     */
-    public function getService(string $service): PendingRequest
+    public function get(string $uri, string $handler): Route
     {
-        if (Http::hasMacro($service)) {
-            return Http::$service();
-        }
+        return $this->register(['GET', 'HEAD'], $uri, $handler);
+    }
 
-        throw new MissingPassageService("The service \"{$service}\" is not available in your passage services.");
+    public function post(string $uri, string $handler): Route
+    {
+        return $this->register(['POST'], $uri, $handler);
+    }
+
+    public function put(string $uri, string $handler): Route
+    {
+        return $this->register(['PUT'], $uri, $handler);
+    }
+
+    public function patch(string $uri, string $handler): Route
+    {
+        return $this->register(['PATCH'], $uri, $handler);
+    }
+
+    public function delete(string $uri, string $handler): Route
+    {
+        return $this->register(['DELETE'], $uri, $handler);
+    }
+
+    public function any(string $uri, string $handler): Route
+    {
+        return $this->register(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], $uri, $handler);
+    }
+
+    private function register(array $methods, string $uri, string $handler): Route
+    {
+        return RouteFacade::match($methods, $uri, [PassageController::class, 'handle'])
+            ->defaults('_passage_handler', $handler)
+            ->where('path', '.*');
     }
 }

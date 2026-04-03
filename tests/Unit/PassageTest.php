@@ -1,8 +1,6 @@
 <?php
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\Http;
-use Morcen\Passage\Exceptions\MissingPassageService;
+use Illuminate\Routing\Route;
 use Morcen\Passage\Passage;
 
 beforeEach(function () {
@@ -10,48 +8,57 @@ beforeEach(function () {
 });
 
 describe('Passage', function () {
-    it('can get a registered service', function () {
-        // Mock Http facade to return true for hasMacro
-        Http::shouldReceive('hasMacro')
-            ->with('testservice')
-            ->once()
-            ->andReturn(true);
+    it('get() registers a GET route pointing to PassageController@handle', function () {
+        $route = $this->passage->get('github/{path?}', 'SomeHandler');
 
-        // Mock the service call
-        $mockPendingRequest = Mockery::mock(PendingRequest::class);
-        Http::shouldReceive('testservice')
-            ->once()
-            ->andReturn($mockPendingRequest);
-
-        $result = $this->passage->getService('testservice');
-
-        expect($result)->toBe($mockPendingRequest);
+        expect($route)->toBeInstanceOf(Route::class);
+        expect($route->methods())->toContain('GET');
+        expect($route->getAction('uses'))->toContain('PassageController@handle');
+        expect($route->defaults['_passage_handler'])->toBe('SomeHandler');
     });
 
-    it('throws exception for non-existent service', function () {
-        // Mock Http facade to return false for hasMacro
-        Http::shouldReceive('hasMacro')
-            ->with('nonexistentservice')
-            ->once()
-            ->andReturn(false);
+    it('post() registers a POST route', function () {
+        $route = $this->passage->post('stripe/{path?}', 'SomeHandler');
 
-        expect(fn () => $this->passage->getService('nonexistentservice'))
-            ->toThrow(MissingPassageService::class, 'The service "nonexistentservice" is not available in your passage services.');
+        expect($route->methods())->toContain('POST');
+        expect($route->methods())->not->toContain('GET');
     });
 
-    it('handles service names with special characters', function () {
-        Http::shouldReceive('hasMacro')
-            ->with('service-with-dashes')
-            ->once()
-            ->andReturn(true);
+    it('put() registers a PUT route', function () {
+        $route = $this->passage->put('resource/{path?}', 'SomeHandler');
 
-        $mockPendingRequest = Mockery::mock(PendingRequest::class);
-        Http::shouldReceive('service-with-dashes')
-            ->once()
-            ->andReturn($mockPendingRequest);
+        expect($route->methods())->toContain('PUT');
+    });
 
-        $result = $this->passage->getService('service-with-dashes');
+    it('patch() registers a PATCH route', function () {
+        $route = $this->passage->patch('resource/{path?}', 'SomeHandler');
 
-        expect($result)->toBe($mockPendingRequest);
+        expect($route->methods())->toContain('PATCH');
+    });
+
+    it('delete() registers a DELETE route', function () {
+        $route = $this->passage->delete('resource/{path?}', 'SomeHandler');
+
+        expect($route->methods())->toContain('DELETE');
+    });
+
+    it('any() registers a route for all HTTP methods', function () {
+        $route = $this->passage->any('payments/{path?}', 'SomeHandler');
+
+        foreach (['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as $method) {
+            expect($route->methods())->toContain($method);
+        }
+    });
+
+    it('stores the handler class in route defaults', function () {
+        $route = $this->passage->get('github/{path?}', 'App\\Http\\Controllers\\GithubPassageController');
+
+        expect($route->defaults['_passage_handler'])->toBe('App\\Http\\Controllers\\GithubPassageController');
+    });
+
+    it('returned route can be chained with name()', function () {
+        $route = $this->passage->get('github/{path?}', 'SomeHandler')->name('github.proxy');
+
+        expect($route->getName())->toBe('github.proxy');
     });
 });
