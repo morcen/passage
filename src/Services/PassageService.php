@@ -8,8 +8,8 @@ use Illuminate\Http\Request;
 
 class PassageService implements PassageServiceInterface
 {
-    // Always stripped — hop-by-hop headers must never be forwarded by a proxy.
-    private const HOP_BY_HOP_HEADERS = [
+    // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
+    private const HOP_BY_HOP_FALLBACK = [
         'host', 'connection', 'transfer-encoding', 'upgrade',
         'keep-alive', 'te', 'trailer', 'proxy-authenticate',
     ];
@@ -66,10 +66,11 @@ class PassageService implements PassageServiceInterface
 
     private function resolveForwardedHeaders(Request $request): array
     {
+        $hopByHop = config('passage.security.hop_by_hop_headers', self::HOP_BY_HOP_FALLBACK);
         $headers = [];
 
         foreach ($request->headers->all() as $name => $values) {
-            if (in_array(strtolower($name), self::HOP_BY_HOP_HEADERS, strict: true)) {
+            if (in_array(strtolower($name), $hopByHop, strict: true)) {
                 continue;
             }
             $headers[$name] = implode(', ', $values);

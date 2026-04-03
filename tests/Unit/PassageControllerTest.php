@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
 use Morcen\Passage\Exceptions\InvalidBaseUriException;
+use Morcen\Passage\Exceptions\PassageRequestAbortedException;
+use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
@@ -116,7 +118,11 @@ class TestNoBaseUriPassageController implements PassageControllerInterface
 beforeEach(function () {
     $this->mockPassageService = Mockery::mock(PassageServiceInterface::class);
     $this->app->instance(PassageServiceInterface::class, $this->mockPassageService);
-    $this->controller = new PassageController($this->mockPassageService, new PassageResponseBuilder);
+    $this->controller = new PassageController(
+        $this->mockPassageService,
+        new PassageResponseBuilder,
+        new AllowedHostsGuard,
+    );
 });
 
 /**
@@ -291,5 +297,72 @@ describe('PassageController', function () {
         $this->mockPassageService->shouldReceive('callService')->once()->andReturn($mockResponse);
 
         $this->controller->handle($request);
+    });
+
+    describe('configurable sensitive header stripping', function () {
+        it('strips headers listed in config strip_client_headers', function () {
+            config(['passage.security.strip_client_headers' => ['x-internal-secret']]);
+
+            $request = Request::create('/github/users', 'GET');
+            $request->headers->set('X-Internal-Secret', 'do-not-forward');
+            $request->headers->set('X-Safe-Header', 'forward-me');
+
+            $route = (new Route(['GET'], '/github/{path?}', []))
+                ->defaults('_passage_handler', TestPassageController::class);
+            $route->bind($request);
+            $request->setRouteResolver(fn () => $route);
+
+            Http::shouldReceive('withOptions')->once()->andReturn(Mockery::mock(PendingRequest::class));
+
+            $this->mockPassageService->shouldReceive('callService')
+                ->withArgs(function (Request $req) {
+                    return $req->header('X-Internal-Secret') === null
+                        && $req->header('X-Safe-Header') === 'forward-me';
+                })
+                ->once()
+                ->andReturn(jsonUpstreamResponse([]));
+
+            $this->controller->handle($request);
+        });
+    });
+
+    describe('PassageRequestAbortedException', function () {
+        it('returns a formatted JSON error when handler throws PassageRequestAbortedException', function () {
+            // Inline handler that aborts
+            $abortingHandler = new class implements PassageControllerInterface
+            {
+                public function getRequest(Request $request): Request
+                {
+                    throw new PassageRequestAbortedException('Access denied.', 403);
+                }
+
+                public function getResponse(Request $request, Response $response): Response
+                {
+                    return $response;
+                }
+
+                public function getOptions(): array
+                {
+                    return ['base_uri' => 'https://api.example.com/'];
+                }
+            };
+
+            // Register the anonymous class name dynamically
+            $handlerClass = get_class($abortingHandler);
+
+            $request = Request::create('/proxy/resource', 'GET');
+            $route = (new Route(['GET'], '/proxy/{path?}', []))
+                ->defaults('_passage_handler', $handlerClass);
+            $route->bind($request);
+            $request->setRouteResolver(fn () => $route);
+
+            Http::shouldReceive('withOptions')->once()->andReturn(Mockery::mock(PendingRequest::class));
+            $this->mockPassageService->shouldReceive('callService')->never();
+
+            $response = $this->controller->handle($request);
+
+            expect($response->getStatusCode())->toBe(403);
+            expect($response->getData(true))->toBe(['error' => 'Access denied.']);
+        });
     });
 });
