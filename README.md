@@ -406,6 +406,26 @@ php artisan passage:controller PaymentsHandler --with-retry
 
 `withRetry($times, $sleepMs, ?callable $when)` accepts an optional third argument — a callable that receives the exception and response and returns `true` if the request should be retried.
 
+For example, you can retry connection failures while skipping retries for client-side HTTP errors:
+
+```php
+use Illuminate\Http\Client\ConnectionException;
+
+public function getOptions(): array
+{
+    return array_merge(
+        ['base_uri' => 'https://payments.example.com/'],
+        $this->withRetry(
+            times: 3,
+            sleepMs: 200,
+            when: function ($response, $e): bool {
+                return $e instanceof ConnectionException;
+            }
+        ),
+    );
+}
+```
+
 ### Upstream error handling
 
 Passage maps transport-layer failures to appropriate HTTP status codes automatically:
