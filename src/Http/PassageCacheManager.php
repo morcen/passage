@@ -68,7 +68,6 @@ class PassageCacheManager
      * @param  string  $method
      * @return bool
      */
-
     private function isCacheable(string $method): bool
     {
         return in_array(strtoupper($method), ['GET', 'HEAD'], strict: true);
@@ -82,7 +81,6 @@ class PassageCacheManager
      * @param  array   $options
      * @return string
      */
-
     private function key(string $method, string $fullUrl, array $options): string
     {
         return 'passage:'.md5($method.$fullUrl.serialize($options));
@@ -93,7 +91,6 @@ class PassageCacheManager
      *
      * @return string|null
      */
-
     private function store(): ?string
     {
         return config('passage.cache.store');
@@ -105,7 +102,6 @@ class PassageCacheManager
      * @param  array  $cached
      * @return \Illuminate\Http\Client\Response
      */
-
     private function reconstruct(array $cached): Response
     {
         $psr7 = new Psr7Response(
