@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Http\Controllers\PassageController;
 use Morcen\Passage\PassageControllerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 #[AsCommand(name: 'passage:list')]
 class PassageListCommand extends Command
@@ -56,8 +57,12 @@ class PassageListCommand extends Command
             return $handler;
         }
 
-        $instance = new $handler;
-        $options = $instance->getOptions();
+        try {
+            $instance = new $handler;
+            $options = $instance->getOptions();
+        } catch (Throwable) {
+            return $handler.' (could not resolve target)';
+        }
 
         if (isset($options['base_uri'])) {
             return $options['base_uri'].' ('.$handler.')';

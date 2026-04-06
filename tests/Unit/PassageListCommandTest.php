@@ -23,6 +23,24 @@ class ListCommandTestPassageController implements PassageControllerInterface
     }
 }
 
+class ThrowingListCommandPassageController implements PassageControllerInterface
+{
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        throw new RuntimeException('boom');
+    }
+}
+
 describe('PassageListCommand', function () {
     it('warns when passage is disabled', function () {
         config()->set('passage.enabled', false);
@@ -61,6 +79,23 @@ describe('PassageListCommand', function () {
 
         $this->artisan('passage:list')
             ->expectsOutputToContain('github/{path?}')
+            ->assertExitCode(0);
+    });
+
+    it('continues listing routes when resolving a handler target throws', function () {
+        config()->set('passage.enabled', true);
+
+        Passage::get('broken-target/{path?}', ThrowingListCommandPassageController::class);
+
+        $this->artisan('passage:list')
+            ->expectsTable(
+                ['Method', 'URI', 'Target'],
+                [[
+                    'GET|HEAD',
+                    'broken-target/{path?}',
+                    ThrowingListCommandPassageController::class.' (could not resolve target)',
+                ]]
+            )
             ->assertExitCode(0);
     });
 });
