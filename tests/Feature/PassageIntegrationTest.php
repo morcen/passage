@@ -186,12 +186,15 @@ describe('Passage Integration Tests', function () {
     });
 
     describe('route registration', function () {
-        it('returns a server error when a handler omits base_uri', function () {
+        it('returns a JSON server error when a handler omits base_uri', function () {
             Passage::get('missing-base-uri/{path?}', NoBaseUriHandler::class);
 
             $this->withExceptionHandling()
                 ->get('/missing-base-uri/resource')
-                ->assertStatus(500);
+                ->assertStatus(500)
+                ->assertJson([
+                    'error' => "Passage handler [NoBaseUriHandler] must return a 'base_uri' from getOptions().",
+                ]);
         });
 
         it('returns 404 for a passage route with a missing handler', function () {
