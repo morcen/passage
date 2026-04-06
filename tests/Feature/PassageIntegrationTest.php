@@ -49,6 +49,19 @@ class AcceptsAuthHeaderHandler extends PassageHandler implements AcceptsClientHe
     }
 }
 
+class AcceptsMixedCaseAuthHeaderHandler extends PassageHandler implements AcceptsClientHeaders
+{
+    public function allowedClientHeaders(): array
+    {
+        return ['Authorization'];
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://relay.example.com/'];
+    }
+}
+
 class ValidatingHandler extends PassageHandler implements ValidatesInboundRequest
 {
     public function rules(): array
@@ -127,6 +140,17 @@ describe('Passage Integration Tests', function () {
                 ->assertStatus(200);
 
             // The Authorization header should have been forwarded upstream
+            Http::assertSent(fn ($req) => $req->hasHeader('Authorization', 'Bearer client-token'));
+        });
+
+        it('matches allowed client headers case-insensitively', function () {
+            Http::fake(['https://relay.example.com/*' => Http::response(['ok' => true], 200)]);
+            Passage::get('relay-mixed-case/{path?}', AcceptsMixedCaseAuthHeaderHandler::class);
+
+            $this->withHeaders(['Authorization' => 'Bearer client-token'])
+                ->get('/relay-mixed-case/resource')
+                ->assertStatus(200);
+
             Http::assertSent(fn ($req) => $req->hasHeader('Authorization', 'Bearer client-token'));
         });
     });
