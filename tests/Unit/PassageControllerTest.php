@@ -182,7 +182,10 @@ describe('PassageController', function () {
 
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_INTERNAL_SERVER_ERROR);
         expect(json_decode($response->getContent(), true))->toBe([
-            'error' => "Passage handler [".TestNoBaseUriPassageController::class."] must return a 'base_uri' from getOptions().",
+            'error' => sprintf(
+                'Passage handler [%s] must return a \'base_uri\' from getOptions().',
+                TestNoBaseUriPassageController::class
+            ),
         ]);
     });
 
