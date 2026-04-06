@@ -12,7 +12,7 @@ trait HasResilienceOptions
      *
      * @param  int  $times  Maximum number of retry attempts.
      * @param  int  $sleepMs  Milliseconds to wait between retries.
-     * @param  callable|null  $when  Optional callable(Response $response, Throwable $e): bool.
+     * @param  callable|null  $when  Optional callable(Throwable $exception, PendingRequest $request): bool.
      *                               When null, retries on connection errors and 5xx responses.
      *
      * Example:
