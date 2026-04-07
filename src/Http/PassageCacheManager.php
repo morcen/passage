@@ -11,13 +11,13 @@ class PassageCacheManager
     /**
      * Attempt to return a cached response.
      * Returns null on a cache miss, or if caching is not applicable.
+     * (only GET and HEAD responses are cached).
      *
      * @param  string  $method   HTTP method (e.g., GET, POST).
      * @param  string  $fullUrl  The full URL being requested.
      * @param  int     $ttl      Cache time-to-live in seconds.
      * @param  array   $options  Request options used to generate the cache key.
-     * @return \Illuminate\Http\Client\Response|null  The cached response or null on miss.
-     *
+     * @return Response|null Cached response, or null on a miss.
      */
     public function get(string $method, string $fullUrl, int $ttl, array $options): ?Response
     {
@@ -42,7 +42,7 @@ class PassageCacheManager
      * @param  string  $fullUrl   The full URL being requested.
      * @param  int     $ttl       Cache time-to-live in seconds.
      * @param  array   $options   Request options used to generate the cache key.
-     * @param  \Illuminate\Http\Client\Response  $response  The response to store.
+     * @param  Response  $response  The response to store.
      * @return void
      */
     public function put(string $method, string $fullUrl, int $ttl, array $options, Response $response): void
@@ -64,9 +64,6 @@ class PassageCacheManager
 
     /**
      * Determine if the HTTP method is cacheable.
-     *
-     * @param  string  $method
-     * @return bool
      */
     private function isCacheable(string $method): bool
     {
@@ -75,11 +72,6 @@ class PassageCacheManager
 
     /**
      * Generate a unique cache key for the request.
-     *
-     * @param  string  $method
-     * @param  string  $fullUrl
-     * @param  array   $options
-     * @return string
      */
     private function key(string $method, string $fullUrl, array $options): string
     {
@@ -88,8 +80,6 @@ class PassageCacheManager
 
     /**
      * Get the configured cache store name.
-     *
-     * @return string|null
      */
     private function store(): ?string
     {
@@ -99,8 +89,12 @@ class PassageCacheManager
     /**
      * Reconstruct a Laravel Response object from cached data.
      *
-     * @param  array  $cached
-     * @return \Illuminate\Http\Client\Response
+     * @param  array{
+     *     status:int,
+     *     headers:array<string, array<int, string>|string>,
+     *     body:string
+     * }  $cached
+     * @return Response
      */
     private function reconstruct(array $cached): Response
     {
