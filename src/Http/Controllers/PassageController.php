@@ -58,11 +58,15 @@ class PassageController extends Controller
         $handlerInstance = $this->app->make($handler);
         $mergedOptions = array_merge(config('passage.options', []), $handlerInstance->getOptions());
 
-        if (empty($mergedOptions['base_uri'])) {
-            throw new InvalidBaseUriException("Passage handler [{$handler}] must return a 'base_uri' from getOptions().");
-        }
+        try {
+            if (empty($mergedOptions['base_uri'])) {
+                throw new InvalidBaseUriException("Passage handler [{$handler}] must return a 'base_uri' from getOptions().");
+            }
 
-        $this->allowedHostsGuard->check($mergedOptions['base_uri']);
+            $this->allowedHostsGuard->check($mergedOptions['base_uri']);
+        } catch (InvalidBaseUriException $e) {
+            return response()->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
 
         // Extract Passage reserved keys before passing options to Guzzle.
         [$passageOptions, $guzzleOptions] = $this->extractPassageOptions($mergedOptions);

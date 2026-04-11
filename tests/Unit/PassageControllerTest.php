@@ -5,7 +5,6 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
-use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Exceptions\PassageRequestAbortedException;
 use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\Controllers\PassageController;
@@ -170,7 +169,7 @@ describe('PassageController', function () {
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_NOT_FOUND);
     });
 
-    it('throws InvalidBaseUriException when handler returns no base_uri', function () {
+    it('returns a JSON server error when handler returns no base_uri', function () {
         $request = Request::create('/no-base-uri/test', 'GET');
         $route = (new Route(['GET'], '/no-base-uri/{path?}', []))
             ->defaults('_passage_handler', TestNoBaseUriPassageController::class);
@@ -179,8 +178,15 @@ describe('PassageController', function () {
 
         Http::shouldReceive('withOptions')->never();
 
-        expect(fn () => $this->controller->handle($request))
-            ->toThrow(InvalidBaseUriException::class);
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_INTERNAL_SERVER_ERROR);
+        expect(json_decode($response->getContent(), true))->toBe([
+            'error' => sprintf(
+                'Passage handler [%s] must return a \'base_uri\' from getOptions().',
+                TestNoBaseUriPassageController::class
+            ),
+        ]);
     });
 
     it('proxies a basic GET request and returns JSON response', function () {
