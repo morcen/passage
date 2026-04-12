@@ -13,10 +13,8 @@ class PassageCacheManager
      * Returns null on a cache miss, or if caching is not applicable.
      * (only GET and HEAD responses are cached).
      *
-     * @param  string  $method   HTTP method (e.g., GET, POST).
-     * @param  string  $fullUrl  The full URL being requested.
-     * @param  int     $ttl      Cache time-to-live in seconds.
-     * @param  array   $options  Request options used to generate the cache key.
+     * @param  int  $ttl  Cache time-to-live in seconds.
+     * @param  array  $options  Request options used to generate the cache key.
      * @return Response|null Cached response, or null on a miss.
      */
     public function get(string $method, string $fullUrl, int $ttl, array $options): ?Response
@@ -38,12 +36,9 @@ class PassageCacheManager
      * Store an upstream response in the cache.
      * No-op for non-cacheable methods.
      *
-     * @param  string  $method    HTTP method (e.g., GET, HEAD).
-     * @param  string  $fullUrl   The full URL being requested.
-     * @param  int     $ttl       Cache time-to-live in seconds.
-     * @param  array   $options   Request options used to generate the cache key.
+     * @param  int  $ttl  Cache time-to-live in seconds.
+     * @param  array  $options  Request options used to generate the cache key.
      * @param  Response  $response  The response to store.
-     * @return void
      */
     public function put(string $method, string $fullUrl, int $ttl, array $options, Response $response): void
     {
@@ -67,7 +62,7 @@ class PassageCacheManager
      */
     private function isCacheable(string $method): bool
     {
-        return in_array(strtoupper($method), ['GET', 'HEAD'], strict: true);
+        return in_array(strtoupper($method), ['GET', 'HEAD'], true);
     }
 
     /**
@@ -94,7 +89,6 @@ class PassageCacheManager
      *     headers:array<string, array<int, string>|string>,
      *     body:string
      * }  $cached
-     * @return Response
      */
     private function reconstruct(array $cached): Response
     {
