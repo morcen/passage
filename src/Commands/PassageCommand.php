@@ -30,7 +30,7 @@ class PassageCommand extends Command
             return self::FAILURE;
         }
 
-        $stubType = $this->resolveStubType($authStyle, $withCache);
+        $stubType = $this->resolveStubType($authStyle, $withCache, $withRetry);
         Artisan::call("make:controller Passages/{$name} --type=passage{$stubType}");
 
         $this->info("Passage handler created at app/Http/Controllers/Passages/{$name}.php");
@@ -41,23 +41,10 @@ class PassageCommand extends Command
         $this->newLine();
         $this->line("    Passage::get('{your-prefix}/{path?}', {$name}::class);");
 
-        if ($withRetry) {
-            $this->newLine();
-            $this->info('Add retry support in getOptions():');
-            $this->newLine();
-            $this->line('    public function getOptions(): array');
-            $this->line('    {');
-            $this->line('        return array_merge(');
-            $this->line("            ['base_uri' => 'https://api.example.com/'],");
-            $this->line('            $this->withRetry(3, 200)');
-            $this->line('        );');
-            $this->line('    }');
-        }
-
         return self::SUCCESS;
     }
 
-    private function resolveStubType(?string $authStyle, bool $withCache): string
+    private function resolveStubType(?string $authStyle, bool $withCache, bool $withRetry): string
     {
         if ($authStyle !== null) {
             $style = strtolower($authStyle);
@@ -69,6 +56,10 @@ class PassageCommand extends Command
 
         if ($withCache) {
             return '.cached';
+        }
+
+        if ($withRetry) {
+            return '.retry';
         }
 
         return '';
