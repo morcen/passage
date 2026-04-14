@@ -8,6 +8,7 @@ use Morcen\Passage\Concerns\HasApiKeyAuth;
 use Morcen\Passage\Concerns\HasBearerAuth;
 use Morcen\Passage\Concerns\HasHmacAuth;
 use Morcen\Passage\Concerns\HasResilienceOptions;
+use Morcen\Passage\Concerns\HasValidationHelpers;
 
 /**
  * Optional abstract base class for Passage handlers.
@@ -33,7 +34,7 @@ use Morcen\Passage\Concerns\HasResilienceOptions;
  */
 abstract class PassageHandler implements PassageControllerInterface
 {
-    use HasApiKeyAuth, HasBearerAuth, HasHmacAuth, HasResilienceOptions;
+    use HasApiKeyAuth, HasBearerAuth, HasHmacAuth, HasResilienceOptions, HasValidationHelpers;
 
     public function getRequest(Request $request): Request
     {
