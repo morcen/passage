@@ -30,7 +30,7 @@ class PassageCommand extends Command
             return self::FAILURE;
         }
 
-        $stubType = $this->resolveStubType($authStyle, $withCache);
+        $stubType = $this->resolveStubType($authStyle, $withCache, $withRetry);
         Artisan::call("make:controller Passages/{$name} --type=passage{$stubType}");
 
         $this->info("Passage handler created at app/Http/Controllers/Passages/{$name}.php");
@@ -41,34 +41,36 @@ class PassageCommand extends Command
         $this->newLine();
         $this->line("    Passage::get('{your-prefix}/{path?}', {$name}::class);");
 
-        if ($withRetry) {
-            $this->newLine();
-            $this->info('Add retry support in getOptions():');
-            $this->newLine();
-            $this->line('    public function getOptions(): array');
-            $this->line('    {');
-            $this->line('        return array_merge(');
-            $this->line("            ['base_uri' => 'https://api.example.com/'],");
-            $this->line('            $this->withRetry(3, 200)');
-            $this->line('        );');
-            $this->line('    }');
-        }
-
         return self::SUCCESS;
     }
 
-    private function resolveStubType(?string $authStyle, bool $withCache): string
+    private function resolveStubType(?string $authStyle, bool $withCache, bool $withRetry): string
     {
         if ($authStyle !== null) {
             $style = strtolower($authStyle);
             if (in_array($style, ['bearer', 'apikey', 'hmac'], strict: true)) {
+                if ($withCache) {
+                    $this->warn('--with-cache is ignored when --with-auth is used. Add passage_cache_ttl to getOptions() manually if needed.');
+                }
+                if ($withRetry) {
+                    $this->warn('--with-retry is ignored when --with-auth is used. Add $this->withRetry() to getOptions() manually if needed.');
+                }
+
                 return ".{$style}";
             }
             $this->warn("Unknown --with-auth value '{$authStyle}'. Using the default stub.");
         }
 
         if ($withCache) {
+            if ($withRetry) {
+                $this->warn('--with-retry is ignored when --with-cache is used. Add $this->withRetry() to getOptions() manually if needed.');
+            }
+
             return '.cached';
+        }
+
+        if ($withRetry) {
+            return '.retry';
         }
 
         return '';
