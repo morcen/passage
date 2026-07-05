@@ -176,5 +176,25 @@ describe('PassageService::callService()', function () {
 
             $this->service->callService($request, $pending, 'test');
         });
+
+        it('normalizes all-uppercase header names before forwarding', function () {
+            $request = Request::create('/test', 'GET');
+            $request->headers = new class extends \Symfony\Component\HttpFoundation\HeaderBag
+            {
+                public function all(?string $key = null): array
+                {
+                    return ['AUTHORIZATION' => ['Bearer service-token']];
+                }
+            };
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $h) => ($h['Authorization'] ?? null) === 'Bearer service-token')
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
+        });
     });
 });
