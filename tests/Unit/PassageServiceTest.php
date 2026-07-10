@@ -4,6 +4,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Morcen\Passage\Services\PassageService;
+use Symfony\Component\HttpFoundation\HeaderBag;
 
 beforeEach(function () {
     $this->service = new PassageService;
@@ -179,7 +180,7 @@ describe('PassageService::callService()', function () {
 
         it('normalizes all-uppercase header names before forwarding', function () {
             $request = Request::create('/test', 'GET');
-            $request->headers = new class extends \Symfony\Component\HttpFoundation\HeaderBag
+            $request->headers = new class extends HeaderBag
             {
                 public function all(?string $key = null): array
                 {
