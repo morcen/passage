@@ -4,6 +4,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Morcen\Passage\Services\PassageService;
+use Symfony\Component\HttpFoundation\HeaderBag;
 
 beforeEach(function () {
     $this->service = new PassageService;
@@ -166,6 +167,26 @@ describe('PassageService::callService()', function () {
             // with a service-level credential.
             $request = Request::create('/test', 'GET');
             $request->headers->set('Authorization', 'Bearer service-token');
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $h) => ($h['Authorization'] ?? null) === 'Bearer service-token')
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
+        });
+
+        it('normalizes all-uppercase header names before forwarding', function () {
+            $request = Request::create('/test', 'GET');
+            $request->headers = new class extends HeaderBag
+            {
+                public function all(?string $key = null): array
+                {
+                    return ['AUTHORIZATION' => ['Bearer service-token']];
+                }
+            };
 
             $pending = Mockery::mock(PendingRequest::class);
             $pending->shouldReceive('withHeaders')

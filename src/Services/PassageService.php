@@ -75,7 +75,7 @@ class PassageService implements PassageServiceInterface
             }
             // Convert to HTTP title-case (e.g. authorization → Authorization,
             // x-request-id → X-Request-Id) so header key lookups work correctly.
-            $titleName = implode('-', array_map('ucfirst', explode('-', $name)));
+            $titleName = ucwords(strtolower($name), '-');
             $headers[$titleName] = implode(', ', $values);
         }
 
