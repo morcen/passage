@@ -189,6 +189,29 @@ describe('3.2 Response caching', function () {
         expect($second->getStatusCode())->toBe(200);
     });
 
+    it('does not serve a cached response to a request with a different query string', function () {
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        $requestPageOne = phase3Route(CachedHandler::class, '/proxy/items?page=1');
+        $requestPageTwo = phase3Route(CachedHandler::class, '/proxy/items?page=2');
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        // Each distinct query string is a cache miss, so upstream is hit for both.
+        $this->mockService->shouldReceive('callService')
+            ->twice()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $first = phase3Controller()->handle($requestPageOne);
+        $second = phase3Controller()->handle($requestPageTwo);
+
+        expect($first->getStatusCode())->toBe(200);
+        expect($second->getStatusCode())->toBe(200);
+    });
+
     it('does not cache non-GET methods', function () {
         Cache::flush();
         config(['passage.cache.store' => 'array']);

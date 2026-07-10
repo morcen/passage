@@ -15,15 +15,16 @@ class PassageCacheManager
      *
      * @param  int  $ttl  Cache time-to-live in seconds.
      * @param  array  $options  Request options used to generate the cache key.
+     * @param  array  $query  Request query parameters used to generate the cache key.
      * @return Response|null Cached response, or null on a miss.
      */
-    public function get(string $method, string $fullUrl, int $ttl, array $options): ?Response
+    public function get(string $method, string $fullUrl, int $ttl, array $options, array $query = []): ?Response
     {
         if (! $this->isCacheable($method)) {
             return null;
         }
 
-        $cached = Cache::store($this->store())->get($this->key($method, $fullUrl, $options));
+        $cached = Cache::store($this->store())->get($this->key($method, $fullUrl, $options, $query));
 
         if ($cached === null) {
             return null;
@@ -39,15 +40,16 @@ class PassageCacheManager
      * @param  int  $ttl  Cache time-to-live in seconds.
      * @param  array  $options  Request options used to generate the cache key.
      * @param  Response  $response  The response to store.
+     * @param  array  $query  Request query parameters used to generate the cache key.
      */
-    public function put(string $method, string $fullUrl, int $ttl, array $options, Response $response): void
+    public function put(string $method, string $fullUrl, int $ttl, array $options, Response $response, array $query = []): void
     {
         if (! $this->isCacheable($method)) {
             return;
         }
 
         Cache::store($this->store())->put(
-            $this->key($method, $fullUrl, $options),
+            $this->key($method, $fullUrl, $options, $query),
             [
                 'status' => $response->status(),
                 'headers' => $response->headers(),
@@ -68,9 +70,11 @@ class PassageCacheManager
     /**
      * Generate a unique cache key for the request.
      */
-    private function key(string $method, string $fullUrl, array $options): string
+    private function key(string $method, string $fullUrl, array $options, array $query = []): string
     {
-        return 'passage:'.md5($method.$fullUrl.serialize($options));
+        ksort($query);
+
+        return 'passage:'.md5($method.$fullUrl.serialize($query).serialize($options));
     }
 
     /**
