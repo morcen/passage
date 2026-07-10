@@ -108,7 +108,7 @@ class PassageController extends Controller
         $fullUrl = rtrim($mergedOptions['base_uri'], '/').'/'.$path;
 
         if ($cacheTtl !== null) {
-            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $guzzleOptions);
+            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $request->query());
             if ($cached !== null) {
                 $upstream = $handlerInstance->getResponse($request, $cached);
                 $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
@@ -132,7 +132,7 @@ class PassageController extends Controller
         $durationMs = (microtime(true) - $startedAt) * 1000;
 
         if ($cacheTtl !== null) {
-            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $upstream);
+            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $upstream, $request->query());
         }
 
         // Streaming: skip getResponse() hook and return directly.
