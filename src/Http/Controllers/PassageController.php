@@ -55,6 +55,10 @@ class PassageController extends Controller
             return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
         }
 
+        if ($this->containsDotSegment($path)) {
+            return response()->json(['error' => 'Invalid path'], Response::HTTP_BAD_REQUEST);
+        }
+
         $handlerInstance = $this->app->make($handler);
         $mergedOptions = array_merge(config('passage.options', []), $handlerInstance->getOptions());
 
@@ -174,5 +178,23 @@ class PassageController extends Controller
         if (config('passage.events.enabled', true)) {
             Event::dispatch($event);
         }
+    }
+
+    private function containsDotSegment(string $path): bool
+    {
+        $decoded = str_replace('\\', '/', $path);
+
+        do {
+            foreach (explode('/', $decoded) as $segment) {
+                if ($segment === '.' || $segment === '..') {
+                    return true;
+                }
+            }
+
+            $previous = $decoded;
+            $decoded = rawurldecode($decoded);
+        } while ($decoded !== $previous);
+
+        return false;
     }
 }
