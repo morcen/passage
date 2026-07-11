@@ -174,6 +174,18 @@ describe('Passage Integration Tests', function () {
             Http::assertNothingSent();
         });
 
+        it('returns JSON 422 without requiring an Accept header or session middleware', function () {
+            Http::fake(); // Should not be called
+            Passage::post('validated/{path?}', ValidatingHandler::class);
+
+            $this->withExceptionHandling()
+                ->post('/validated/items', [])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['name']);
+
+            Http::assertNothingSent();
+        });
+
         it('forwards request when validation passes', function () {
             Http::fake(['https://api.example.com/*' => Http::response(['ok' => true], 200)]);
             Passage::post('validated/{path?}', ValidatingHandler::class);
