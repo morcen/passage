@@ -7,6 +7,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Morcen\Passage\Contracts\AcceptsClientHeaders;
 use Morcen\Passage\Contracts\ValidatesInboundRequest;
 use Morcen\Passage\Events\PassageRequestFailed;
@@ -102,7 +103,14 @@ class PassageController extends Controller
 
         // Run validation before transformation if the handler declares rules.
         if ($handlerInstance instanceof ValidatesInboundRequest) {
-            $request->validate($handlerInstance->rules());
+            try {
+                $request->validate($handlerInstance->rules());
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'error' => 'Validation failed.',
+                    'errors' => $e->errors(),
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
         }
 
         try {
