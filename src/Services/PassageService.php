@@ -5,6 +5,7 @@ namespace Morcen\Passage\Services;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class PassageService implements PassageServiceInterface
 {
@@ -36,12 +37,14 @@ class PassageService implements PassageServiceInterface
 
         if (count($request->allFiles()) > 0) {
             foreach ($request->allFiles() as $key => $file) {
-                $service = $service->attach(
-                    $key,
-                    $file->get(),
-                    $file->getClientOriginalName(),
-                    ['Content-Type' => $file->getMimeType()]
-                );
+                foreach (Arr::wrap($file) as $index => $singleFile) {
+                    $service = $service->attach(
+                        is_array($file) ? "{$key}[{$index}]" : $key,
+                        $singleFile->get(),
+                        $singleFile->getClientOriginalName(),
+                        ['Content-Type' => $singleFile->getMimeType()]
+                    );
+                }
             }
 
             return $service->{$method}($uri, $request->post());
