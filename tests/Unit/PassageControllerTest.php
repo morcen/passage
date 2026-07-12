@@ -116,6 +116,25 @@ class TestNoBaseUriPassageController implements PassageControllerInterface
     }
 }
 
+// Fixture: base_uri pointing at a host that can be disallowed via config
+class TestDisallowedHostPassageController implements PassageControllerInterface
+{
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.evil.com/'];
+    }
+}
+
 beforeEach(function () {
     $this->mockPassageService = Mockery::mock(PassageServiceInterface::class);
     $this->app->instance(PassageServiceInterface::class, $this->mockPassageService);
@@ -186,6 +205,28 @@ describe('PassageController', function () {
                 'Passage handler [%s] must return a \'base_uri\' from getOptions().',
                 TestNoBaseUriPassageController::class
             ),
+        ]);
+    });
+
+    it('returns a JSON 403 when the base_uri host is not in the allowed_hosts list', function () {
+        config([
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.example.com'],
+        ]);
+
+        $request = Request::create('/blocked-host/test', 'GET');
+        $route = (new Route(['GET'], '/blocked-host/{path?}', []))
+            ->defaults('_passage_handler', TestDisallowedHostPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        Http::shouldReceive('withOptions')->never();
+
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_FORBIDDEN);
+        expect(json_decode($response->getContent(), true))->toBe([
+            'error' => 'Upstream host [api.evil.com] is not in the passage allowed_hosts list.',
         ]);
     });
 

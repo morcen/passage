@@ -13,6 +13,7 @@ use Morcen\Passage\Contracts\ValidatesInboundRequest;
 use Morcen\Passage\Events\PassageRequestFailed;
 use Morcen\Passage\Events\PassageRequestSending;
 use Morcen\Passage\Events\PassageResponseReceived;
+use Morcen\Passage\Exceptions\DisallowedProxyTargetException;
 use Morcen\Passage\Exceptions\InvalidBaseUriException;
 use Morcen\Passage\Exceptions\PassageRequestAbortedException;
 use Morcen\Passage\Guards\AllowedHostsGuard;
@@ -75,6 +76,8 @@ class PassageController extends Controller
             $this->allowedHostsGuard->check($mergedOptions['base_uri']);
         } catch (InvalidBaseUriException $e) {
             return response()->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (DisallowedProxyTargetException $e) {
+            return response()->json(['error' => $e->getMessage()], Response::HTTP_FORBIDDEN);
         }
 
         // Extract Passage reserved keys before passing options to Guzzle.
