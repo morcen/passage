@@ -243,8 +243,8 @@ describe('PassageController', function () {
         $this->controller->handle($request);
     });
 
-    it('extracts the path route parameter as the forwarded URI', function () {
-        $request = Request::create('/github/users/morcen/repos', 'GET');
+    it('extracts a safe path with dots as the forwarded URI', function () {
+        $request = Request::create('/github/v1.2/.well-known/file..name', 'GET');
         $route = (new Route(['GET'], '/github/{path?}', []))
             ->defaults('_passage_handler', TestPassageController::class)
             ->where('path', '.*');
@@ -258,13 +258,38 @@ describe('PassageController', function () {
 
         $this->mockPassageService->shouldReceive('callService')
             ->withArgs(function (Request $req, $pending, string $uri) {
-                return $uri === 'users/morcen/repos';
+                return $uri === 'v1.2/.well-known/file..name';
             })
             ->once()
             ->andReturn($mockResponse);
 
         $this->controller->handle($request);
     });
+
+    it('rejects dot-segment traversal before creating an upstream request', function (string $path) {
+        $request = Request::create('/github/safe', 'GET');
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestPassageController::class)
+            ->where('path', '.*');
+        $route->bind($request);
+        $route->setParameter('path', $path);
+        $request->setRouteResolver(fn () => $route);
+
+        Http::shouldReceive('withOptions')->never();
+        $this->mockPassageService->shouldReceive('callService')->never();
+
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_BAD_REQUEST);
+        expect($response->getData(true))->toBe(['error' => 'Invalid path']);
+    })->with([
+        'literal parent segment' => '../private',
+        'nested parent segment' => 'public/../private',
+        'percent-encoded parent segment' => '%2e%2e/private',
+        'mixed-encoded parent segment' => '%2E./private',
+        'encoded separator after parent segment' => '%2e%2e%2fprivate',
+        'double-encoded parent segment' => '%252e%252e/private',
+    ]);
 
     it('applies response transformation', function () {
         $request = Request::create('/enriched/posts', 'GET');
