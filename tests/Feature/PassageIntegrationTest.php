@@ -186,6 +186,18 @@ describe('Passage Integration Tests', function () {
     });
 
     describe('route registration', function () {
+        it('returns 404 without proxying when Passage is disabled', function () {
+            Http::fake();
+            config(['passage.enabled' => false]);
+            Passage::get('disabled/{path?}', IntegrationTestPassageController::class);
+
+            $this->getJson('/disabled/resource')
+                ->assertStatus(404)
+                ->assertJson(['error' => 'Route not found']);
+
+            Http::assertNothingSent();
+        });
+
         it('returns a JSON server error when a handler omits base_uri', function () {
             Passage::get('missing-base-uri/{path?}', NoBaseUriHandler::class);
 

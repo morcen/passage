@@ -45,6 +45,10 @@ class PassageController extends Controller
 
     public function handle(Request $request): Response
     {
+        if (! config('passage.enabled', true)) {
+            return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
+        }
+
         $handler = $request->route()->defaults['_passage_handler'] ?? null;
         $path = (string) $request->route('path', '');
 

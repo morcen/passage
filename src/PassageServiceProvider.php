@@ -32,11 +32,9 @@ class PassageServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        $passage = config('passage');
-
-        if (isset($passage['enabled']) && $passage['enabled']) {
-            $this->app->bind(PassageServiceInterface::class, PassageService::class);
-        }
+        // Keep the controller resolvable even when Passage is disabled. The
+        // controller enforces the master switch before any proxy work occurs.
+        $this->app->bind(PassageServiceInterface::class, PassageService::class);
 
         // PassageResponseBuilder, AllowedHostsGuard, PassageCacheManager, and
         // PassageErrorHandler have no dependencies and are auto-resolved by the container.
