@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Morcen\Passage\Concerns\HasResilienceOptions;
+use Morcen\Passage\Contracts\AcceptsClientHeaders;
 use Morcen\Passage\Events\PassageRequestFailed;
 use Morcen\Passage\Events\PassageRequestSending;
 use Morcen\Passage\Events\PassageResponseReceived;
@@ -40,6 +41,19 @@ class RetryableHandler extends PassageHandler
 
 class CachedHandler extends PassageHandler
 {
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.example.com/', 'passage_cache_ttl' => 60];
+    }
+}
+
+class CachedHandlerAcceptingAuth extends PassageHandler implements AcceptsClientHeaders
+{
+    public function allowedClientHeaders(): array
+    {
+        return ['authorization'];
+    }
+
     public function getOptions(): array
     {
         return ['base_uri' => 'https://api.example.com/', 'passage_cache_ttl' => 60];
@@ -210,6 +224,59 @@ describe('3.2 Response caching', function () {
 
         expect($first->getStatusCode())->toBe(200);
         expect($second->getStatusCode())->toBe(200);
+    });
+
+    it('does not serve a cached response to a request with a different Authorization header', function () {
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        $requestUserOne = phase3Route(CachedHandlerAcceptingAuth::class);
+        $requestUserOne->headers->set('Authorization', 'Bearer user-one-token');
+
+        $requestUserTwo = phase3Route(CachedHandlerAcceptingAuth::class);
+        $requestUserTwo->headers->set('Authorization', 'Bearer user-two-token');
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        // Each distinct Authorization header is a cache miss, so upstream is hit for
+        // both requests — user two must never be served user one's cached response.
+        $this->mockService->shouldReceive('callService')
+            ->twice()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $first = phase3Controller()->handle($requestUserOne);
+        $second = phase3Controller()->handle($requestUserTwo);
+
+        expect($first->getStatusCode())->toBe(200);
+        expect($second->getStatusCode())->toBe(200);
+    });
+
+    it('serves a cached response to a request with the same Authorization header', function () {
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        $first = phase3Route(CachedHandlerAcceptingAuth::class);
+        $first->headers->set('Authorization', 'Bearer same-token');
+
+        $second = phase3Route(CachedHandlerAcceptingAuth::class);
+        $second->headers->set('Authorization', 'Bearer same-token');
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        // Same Authorization header on both requests: only the first hits upstream.
+        $this->mockService->shouldReceive('callService')
+            ->once()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $firstResponse = phase3Controller()->handle($first);
+        $secondResponse = phase3Controller()->handle($second);
+
+        expect($firstResponse->getStatusCode())->toBe(200);
+        expect($secondResponse->getStatusCode())->toBe(200);
     });
 
     it('does not cache non-GET methods', function () {

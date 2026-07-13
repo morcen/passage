@@ -6,19 +6,14 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Morcen\Passage\Support\ForwardedHeaderResolver;
 
 class PassageService implements PassageServiceInterface
 {
-    // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
-    private const HOP_BY_HOP_FALLBACK = [
-        'host', 'connection', 'transfer-encoding', 'upgrade',
-        'keep-alive', 'te', 'trailer', 'proxy-authenticate',
-    ];
-
     public function callService(Request $request, PendingRequest $service, string $uri): Response
     {
         $method = strtolower($request->method());
-        $service = $service->withHeaders($this->resolveForwardedHeaders($request));
+        $service = $service->withHeaders(ForwardedHeaderResolver::resolve($request));
 
         if (in_array($method, ['get', 'head'])) {
             return $service->{$method}($uri, $request->query());
@@ -65,23 +60,5 @@ class PassageService implements PassageServiceInterface
         }
 
         return $service->{$method}($uri);
-    }
-
-    private function resolveForwardedHeaders(Request $request): array
-    {
-        $hopByHop = config('passage.security.hop_by_hop_headers', self::HOP_BY_HOP_FALLBACK);
-        $headers = [];
-
-        foreach ($request->headers->all() as $name => $values) {
-            if (in_array(strtolower($name), $hopByHop, strict: true)) {
-                continue;
-            }
-            // Convert to HTTP title-case (e.g. authorization → Authorization,
-            // x-request-id → X-Request-Id) so header key lookups work correctly.
-            $titleName = ucwords(strtolower($name), '-');
-            $headers[$titleName] = implode(', ', $values);
-        }
-
-        return $headers;
     }
 }

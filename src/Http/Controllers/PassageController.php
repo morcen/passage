@@ -22,6 +22,7 @@ use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Morcen\Passage\Support\ForwardedHeaderResolver;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -125,9 +126,12 @@ class PassageController extends Controller
         // Check cache before making the upstream call.
         $cacheTtl = $passageOptions['passage_cache_ttl'] ?? null;
         $fullUrl = rtrim($mergedOptions['base_uri'], '/').'/'.$path;
+        // Same headers PassageService forwards upstream, so a cache entry is never
+        // shared between requests that carry different credentials/identity.
+        $forwardedHeaders = ForwardedHeaderResolver::resolve($request);
 
         if ($cacheTtl !== null) {
-            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $request->query());
+            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $request->query(), $forwardedHeaders);
             if ($cached !== null) {
                 $upstream = $handlerInstance->getResponse($request, $cached);
                 $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
@@ -151,7 +155,7 @@ class PassageController extends Controller
         $durationMs = (microtime(true) - $startedAt) * 1000;
 
         if ($cacheTtl !== null) {
-            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $upstream, $request->query());
+            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $upstream, $request->query(), $forwardedHeaders);
         }
 
         // Streaming: skip getResponse() hook and return directly.
