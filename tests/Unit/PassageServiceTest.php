@@ -3,6 +3,7 @@
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Morcen\Passage\Services\PassageService;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
@@ -196,6 +197,45 @@ describe('PassageService::callService()', function () {
             $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
 
             $this->service->callService($request, $pending, 'test');
+        });
+    });
+
+    describe('file uploads', function () {
+        it('forwards a single uploaded file', function () {
+            $file = UploadedFile::fake()->create('avatar.png', 10, 'image/png');
+            $request = Request::create('/test', 'POST');
+            $request->files->set('avatar', $file);
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('attach')
+                ->once()
+                ->with('avatar', $file->get(), 'avatar.png', ['Content-Type' => 'image/png'])
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
+        });
+
+        it('forwards multiple files uploaded under the same field name without crashing', function () {
+            $file1 = UploadedFile::fake()->create('one.txt', 5, 'text/plain');
+            $file2 = UploadedFile::fake()->create('two.txt', 5, 'text/plain');
+            $request = Request::create('/test', 'POST');
+            $request->files->set('attachments', [$file1, $file2]);
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('attach')
+                ->once()
+                ->with('attachments[0]', $file1->get(), 'one.txt', ['Content-Type' => 'text/plain'])
+                ->andReturn($pending);
+            $pending->shouldReceive('attach')
+                ->once()
+                ->with('attachments[1]', $file2->get(), 'two.txt', ['Content-Type' => 'text/plain'])
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
         });
     });
 });
