@@ -197,6 +197,43 @@ describe('Passage Integration Tests', function () {
         });
     });
 
+    describe('enforce_allowed_hosts redirect protection', function () {
+        it('does not follow an upstream redirect to a host outside allowed_hosts', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => true,
+                'passage.security.allowed_hosts' => ['api.example.com'],
+            ]);
+
+            Http::fake([
+                'https://api.example.com/*' => Http::response('', 302, ['Location' => 'https://evil.example.com/steal']),
+                'https://evil.example.com/*' => Http::response(['secret' => 'leaked'], 200),
+            ]);
+            Passage::get('redirect-guard/{path?}', IntegrationTestPassageController::class);
+
+            $response = $this->get('/redirect-guard/resource');
+
+            $response->assertStatus(403);
+            Http::assertNotSent(fn ($req) => str_contains($req->url(), 'evil.example.com'));
+        });
+
+        it('still follows an upstream redirect to another allowed host', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => true,
+                'passage.security.allowed_hosts' => ['api.example.com'],
+            ]);
+
+            Http::fake([
+                'https://api.example.com/entry' => Http::response('', 302, ['Location' => 'https://api.example.com/final']),
+                'https://api.example.com/final' => Http::response(['ok' => true], 200),
+            ]);
+            Passage::get('redirect-ok/{path?}', IntegrationTestPassageController::class);
+
+            $response = $this->get('/redirect-ok/entry');
+
+            $response->assertStatus(200)->assertJson(['ok' => true]);
+        });
+    });
+
     describe('route registration', function () {
         it('returns 404 without proxying when Passage is disabled', function () {
             Http::fake();

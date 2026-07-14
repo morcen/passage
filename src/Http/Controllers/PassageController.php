@@ -84,6 +84,10 @@ class PassageController extends Controller
         // Extract Passage reserved keys before passing options to Guzzle.
         [$passageOptions, $guzzleOptions] = $this->extractPassageOptions($mergedOptions);
 
+        if (config('passage.security.enforce_allowed_hosts', false)) {
+            $guzzleOptions['allow_redirects'] = $this->guardRedirects($guzzleOptions['allow_redirects'] ?? true);
+        }
+
         $pendingRequest = Http::withOptions($guzzleOptions);
 
         if (isset($passageOptions['passage_retry_times'])) {
@@ -145,6 +149,11 @@ class PassageController extends Controller
 
         try {
             $upstream = $this->passageService->callService($request, $pendingRequest, $path);
+        } catch (DisallowedProxyTargetException $e) {
+            $durationMs = (microtime(true) - $startedAt) * 1000;
+            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
+
+            return response()->json(['error' => $e->getMessage()], Response::HTTP_FORBIDDEN);
         } catch (ConnectionException|Throwable $e) {
             $durationMs = (microtime(true) - $startedAt) * 1000;
             $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
@@ -190,6 +199,33 @@ class PassageController extends Controller
         }
 
         return [$passage, $guzzle];
+    }
+
+    /**
+     * Wrap the resolved allow_redirects Guzzle option so every redirect hop
+     * is re-validated against the allowed_hosts list before it is followed.
+     *
+     * Prevents an allowlisted upstream from bypassing enforce_allowed_hosts
+     * by issuing a redirect to a host outside the allowlist.
+     */
+    private function guardRedirects(mixed $allowRedirects): array|false
+    {
+        if ($allowRedirects === false) {
+            return false;
+        }
+
+        $settings = is_array($allowRedirects) ? $allowRedirects : [];
+        $previousOnRedirect = $settings['on_redirect'] ?? null;
+
+        $settings['on_redirect'] = function ($request, $response, $uri) use ($previousOnRedirect) {
+            $this->allowedHostsGuard->checkHost($uri->getHost());
+
+            if ($previousOnRedirect !== null) {
+                $previousOnRedirect($request, $response, $uri);
+            }
+        };
+
+        return $settings;
     }
 
     private function fireEvent(object $event): void

@@ -5,6 +5,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
+use Morcen\Passage\Exceptions\DisallowedProxyTargetException;
 use Morcen\Passage\Exceptions\PassageRequestAbortedException;
 use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\Controllers\PassageController;
@@ -13,6 +14,9 @@ use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
 
 // Fixture: transforms both request and response
@@ -135,6 +139,25 @@ class TestDisallowedHostPassageController implements PassageControllerInterface
     }
 }
 
+// Fixture: explicitly disables redirect following
+class TestNoRedirectsPassageController implements PassageControllerInterface
+{
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.custom.com/', 'allow_redirects' => false];
+    }
+}
+
 beforeEach(function () {
     $this->mockPassageService = Mockery::mock(PassageServiceInterface::class);
     $this->app->instance(PassageServiceInterface::class, $this->mockPassageService);
@@ -228,6 +251,113 @@ describe('PassageController', function () {
         expect(json_decode($response->getContent(), true))->toBe([
             'error' => 'Upstream host [api.evil.com] is not in the passage allowed_hosts list.',
         ]);
+    });
+
+    it('returns a JSON 403 when an upstream redirect targets a host outside allowed_hosts', function () {
+        config([
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.custom.com'],
+        ]);
+
+        $request = Request::create('/github/users/123', 'GET');
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
+
+        // Simulates the on_redirect guard rejecting a redirect hop mid-request.
+        $this->mockPassageService->shouldReceive('callService')
+            ->once()
+            ->andThrow(new DisallowedProxyTargetException(
+                'Upstream host [evil.example.com] is not in the passage allowed_hosts list.'
+            ));
+
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_FORBIDDEN);
+        expect(json_decode($response->getContent(), true))->toBe([
+            'error' => 'Upstream host [evil.example.com] is not in the passage allowed_hosts list.',
+        ]);
+    });
+
+    it('wires an on_redirect guard into allow_redirects that blocks disallowed redirect hosts', function () {
+        config([
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.custom.com'],
+        ]);
+
+        $request = Request::create('/github/users/123', 'GET');
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $capturedOptions = null;
+        $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        Http::shouldReceive('withOptions')
+            ->once()
+            ->withArgs(function (array $options) use (&$capturedOptions) {
+                $capturedOptions = $options;
+
+                return true;
+            })
+            ->andReturn($mockPendingRequest);
+
+        $mockResponse = jsonUpstreamResponse(['id' => 123]);
+        $this->mockPassageService->shouldReceive('callService')->once()->andReturn($mockResponse);
+
+        $this->controller->handle($request);
+
+        expect($capturedOptions['allow_redirects'])->toBeArray();
+        $onRedirect = $capturedOptions['allow_redirects']['on_redirect'];
+        expect($onRedirect)->toBeCallable();
+
+        $psrRequest = Mockery::mock(RequestInterface::class);
+        $psrResponse = Mockery::mock(ResponseInterface::class);
+
+        $allowedUri = Mockery::mock(UriInterface::class);
+        $allowedUri->shouldReceive('getHost')->andReturn('api.custom.com');
+        expect(fn () => $onRedirect($psrRequest, $psrResponse, $allowedUri))
+            ->not->toThrow(DisallowedProxyTargetException::class);
+
+        $disallowedUri = Mockery::mock(UriInterface::class);
+        $disallowedUri->shouldReceive('getHost')->andReturn('evil.example.com');
+        expect(fn () => $onRedirect($psrRequest, $psrResponse, $disallowedUri))
+            ->toThrow(DisallowedProxyTargetException::class);
+    });
+
+    it('does not wire an on_redirect guard when allow_redirects is explicitly disabled', function () {
+        config([
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.custom.com'],
+        ]);
+
+        $request = Request::create('/no-redirects/users/123', 'GET');
+        $route = (new Route(['GET'], '/no-redirects/{path?}', []))
+            ->defaults('_passage_handler', TestNoRedirectsPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $capturedOptions = null;
+        $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        Http::shouldReceive('withOptions')
+            ->once()
+            ->withArgs(function (array $options) use (&$capturedOptions) {
+                $capturedOptions = $options;
+
+                return true;
+            })
+            ->andReturn($mockPendingRequest);
+
+        $mockResponse = jsonUpstreamResponse(['id' => 123]);
+        $this->mockPassageService->shouldReceive('callService')->once()->andReturn($mockResponse);
+
+        $this->controller->handle($request);
+
+        expect($capturedOptions['allow_redirects'])->toBeFalse();
     });
 
     it('proxies a basic GET request and returns JSON response', function () {
