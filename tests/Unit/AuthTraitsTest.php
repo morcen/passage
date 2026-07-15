@@ -188,6 +188,55 @@ describe('HasHmacAuth', function () {
         $expected = hash_hmac('sha512', $timestamp.'.', 'super-secret');
         expect($result->header('X-Req-Sig'))->toBe($expected);
     });
+
+    it('signs the parsed fields of a multipart request instead of the empty raw body', function () {
+        $handler = new HmacHandler;
+
+        // Mirrors PHP's real behavior: multipart requests consume php://input
+        // into $_POST before userland code runs, so getContent() is empty.
+        $request = Request::create('/test', 'POST', ['field1' => 'hello', 'field2' => 'world'], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+
+        $result = $handler->getRequest($request);
+
+        $timestamp = $result->header('X-Timestamp');
+        $signature = $result->header('X-Signature');
+        $expectedPayload = $timestamp.'.'.json_encode([
+            'fields' => ['field1' => 'hello', 'field2' => 'world'],
+            'files' => [],
+        ]);
+
+        expect($signature)->toBe(hash_hmac('sha256', $expectedPayload, 'super-secret'));
+    });
+
+    it('produces different signatures for multipart requests with different field values', function () {
+        $handlerA = new HmacHandler;
+        $handlerB = new HmacHandler;
+
+        $requestA = Request::create('/test', 'POST', ['field1' => 'hello'], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+        $requestB = Request::create('/test', 'POST', ['field1' => 'goodbye'], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+
+        $resultA = $handlerA->getRequest($requestA);
+        $resultB = $handlerB->getRequest($requestB);
+
+        $expectedA = hash_hmac('sha256', $resultA->header('X-Timestamp').'.'.json_encode([
+            'fields' => ['field1' => 'hello'],
+            'files' => [],
+        ]), 'super-secret');
+        $expectedB = hash_hmac('sha256', $resultB->header('X-Timestamp').'.'.json_encode([
+            'fields' => ['field1' => 'goodbye'],
+            'files' => [],
+        ]), 'super-secret');
+
+        expect($resultA->header('X-Signature'))->toBe($expectedA);
+        expect($resultB->header('X-Signature'))->toBe($expectedB);
+        expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
+    });
 });
 
 describe('PassageHandler base class', function () {
