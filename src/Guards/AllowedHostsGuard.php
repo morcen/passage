@@ -29,6 +29,24 @@ class AllowedHostsGuard
             );
         }
 
+        $this->checkHost($host);
+    }
+
+    /**
+     * Assert that the given host is permitted as an upstream proxy target.
+     *
+     * Used both for the initial base_uri check and to re-validate each hop
+     * of an upstream redirect, so that a redirect issued by an allowlisted
+     * host cannot be used to reach a host outside the allowlist.
+     *
+     * @throws DisallowedProxyTargetException
+     */
+    public function checkHost(string $host): void
+    {
+        if (! config('passage.security.enforce_allowed_hosts', false)) {
+            return;
+        }
+
         $allowedHosts = config('passage.security.allowed_hosts', []);
 
         if (! in_array($host, $allowedHosts, strict: true)) {

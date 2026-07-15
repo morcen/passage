@@ -257,6 +257,8 @@ Then list the permitted upstream hostnames in `config/passage.php`:
 
 Any handler whose `base_uri` resolves to a host not in the list will throw `DisallowedProxyTargetException` instead of forwarding the request.
 
+When enabled, the guard also re-validates every upstream redirect hop: if an allowed host responds with a redirect to a host outside `allowed_hosts`, Passage aborts the request with a 403 instead of following it. To opt a specific handler out of redirect-following entirely, set `'allow_redirects' => false` in its `getOptions()`.
+
 ### Aborting a request from a handler
 
 To abort a request early with a specific HTTP status, throw `PassageRequestAbortedException` inside `getRequest()`:

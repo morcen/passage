@@ -49,4 +49,34 @@ describe('AllowedHostsGuard', function () {
                 ->toThrow(DisallowedProxyTargetException::class);
         });
     });
+
+    describe('checkHost()', function () {
+        it('permits any host when enforce_allowed_hosts is false', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => false,
+                'passage.security.allowed_hosts' => [],
+            ]);
+
+            expect(fn () => $this->guard->checkHost('evil.example.com'))->not->toThrow(DisallowedProxyTargetException::class);
+        });
+
+        it('permits an allowlisted host when enforce_allowed_hosts is true', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => true,
+                'passage.security.allowed_hosts' => ['api.github.com'],
+            ]);
+
+            expect(fn () => $this->guard->checkHost('api.github.com'))->not->toThrow(DisallowedProxyTargetException::class);
+        });
+
+        it('throws for a host outside the allowlist, e.g. a redirect target', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => true,
+                'passage.security.allowed_hosts' => ['api.github.com'],
+            ]);
+
+            expect(fn () => $this->guard->checkHost('evil.example.com'))
+                ->toThrow(DisallowedProxyTargetException::class);
+        });
+    });
 });
