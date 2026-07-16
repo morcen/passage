@@ -328,6 +328,32 @@ describe('3.2 Response caching', function () {
 
         phase3Controller()->handle($request);
     });
+
+    it('serves a cached GET response when enforce_allowed_hosts is also enabled', function () {
+        // Regression test for #122: enforce_allowed_hosts injects an on_redirect
+        // Closure into allow_redirects, which used to reach
+        // PassageCacheManager::key()'s serialize() call and crash every request.
+        Cache::flush();
+        config([
+            'passage.cache.store' => 'array',
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.example.com'],
+        ]);
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        $this->mockService->shouldReceive('callService')
+            ->once()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $first = phase3Controller()->handle(phase3Route(CachedHandler::class));
+        $second = phase3Controller()->handle(phase3Route(CachedHandler::class));
+
+        expect($first->getStatusCode())->toBe(200);
+        expect($second->getStatusCode())->toBe(200);
+    });
 });
 
 describe('3.3 Upstream error handling', function () {
