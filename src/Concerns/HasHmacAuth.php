@@ -3,6 +3,7 @@
 namespace Morcen\Passage\Concerns;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 trait HasHmacAuth
 {
@@ -27,7 +28,7 @@ trait HasHmacAuth
         string $signatureHeader = 'X-Signature'
     ): Request {
         $timestamp = (string) time();
-        $body = $request->getContent();
+        $body = $this->resolveHmacSignedBody($request);
         $payload = $timestamp.'.'.$body;
         $signature = hash_hmac($algorithm, $payload, $secret);
 
@@ -35,5 +36,37 @@ trait HasHmacAuth
         $request->headers->set($signatureHeader, $signature);
 
         return $request;
+    }
+
+    /**
+     * Resolve the payload to sign.
+     *
+     * PHP consumes php://input while populating $_POST/$_FILES for
+     * multipart/form-data requests, so getContent() is always empty for
+     * them. Sign a stable representation of the parsed fields and file
+     * metadata instead, so the signature still covers what was submitted.
+     */
+    private function resolveHmacSignedBody(Request $request): string
+    {
+        if (! str_contains($request->header('Content-Type', ''), 'multipart/form-data')) {
+            return $request->getContent();
+        }
+
+        $files = [];
+
+        foreach ($request->allFiles() as $key => $file) {
+            foreach (Arr::wrap($file) as $index => $singleFile) {
+                $files[is_array($file) ? "{$key}[{$index}]" : $key] = [
+                    'name' => $singleFile->getClientOriginalName(),
+                    'size' => $singleFile->getSize(),
+                    'mime' => $singleFile->getMimeType(),
+                ];
+            }
+        }
+
+        return json_encode([
+            'fields' => $request->post(),
+            'files' => $files,
+        ]);
     }
 }
