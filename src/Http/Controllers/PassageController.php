@@ -84,6 +84,12 @@ class PassageController extends Controller
         // Extract Passage reserved keys before passing options to Guzzle.
         [$passageOptions, $guzzleOptions] = $this->extractPassageOptions($mergedOptions);
 
+        // Snapshot before the redirect guard below injects a Closure into
+        // allow_redirects: PassageCacheManager builds its cache key with
+        // serialize(), which throws on Closures, and the guard closure has
+        // no bearing on cached response content anyway.
+        $cacheableOptions = $guzzleOptions;
+
         if (config('passage.security.enforce_allowed_hosts', false)) {
             $guzzleOptions['allow_redirects'] = $this->guardRedirects($guzzleOptions['allow_redirects'] ?? true);
         }
@@ -135,7 +141,7 @@ class PassageController extends Controller
         $forwardedHeaders = ForwardedHeaderResolver::resolve($request);
 
         if ($cacheTtl !== null) {
-            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $request->query(), $forwardedHeaders);
+            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $cacheableOptions, $request->query(), $forwardedHeaders);
             if ($cached !== null) {
                 $upstream = $handlerInstance->getResponse($request, $cached);
                 $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
@@ -164,7 +170,7 @@ class PassageController extends Controller
         $durationMs = (microtime(true) - $startedAt) * 1000;
 
         if ($cacheTtl !== null) {
-            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $guzzleOptions, $upstream, $request->query(), $forwardedHeaders);
+            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $cacheableOptions, $upstream, $request->query(), $forwardedHeaders);
         }
 
         // Streaming: skip getResponse() hook and return directly.
