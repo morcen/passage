@@ -237,6 +237,27 @@ describe('HasHmacAuth', function () {
         expect($resultB->header('X-Signature'))->toBe($expectedB);
         expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
     });
+
+    it('still signs actual field content when a multipart field contains invalid UTF-8 bytes', function () {
+        $handler = new HmacHandler;
+        $invalid = "\xB1\x31";
+
+        $request = Request::create('/test', 'POST', ['comment' => $invalid], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+
+        $result = $handler->getRequest($request);
+
+        $timestamp = $result->header('X-Timestamp');
+        $signature = $result->header('X-Signature');
+        $expectedPayload = $timestamp.'.'.json_encode([
+            'fields' => ['comment' => $invalid],
+            'files' => [],
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        expect($signature)->toBe(hash_hmac('sha256', $expectedPayload, 'super-secret'));
+        expect($signature)->not->toBe(hash_hmac('sha256', "{$timestamp}.", 'super-secret'));
+    });
 });
 
 describe('PassageHandler base class', function () {

@@ -4,6 +4,7 @@ namespace Morcen\Passage\Concerns;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use RuntimeException;
 
 trait HasHmacAuth
 {
@@ -64,9 +65,15 @@ trait HasHmacAuth
             }
         }
 
-        return json_encode([
+        $encoded = json_encode([
             'fields' => $request->post(),
             'files' => $files,
-        ]);
+        ], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode multipart fields for HMAC signing: '.json_last_error_msg());
+        }
+
+        return $encoded;
     }
 }
