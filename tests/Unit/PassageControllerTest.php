@@ -462,6 +462,32 @@ describe('PassageController', function () {
         'double-encoded parent segment' => '%252e%252e/private',
     ]);
 
+    it('rejects paths that would resolve to a URI with their own scheme or authority', function (string $path) {
+        $request = Request::create('/github/safe', 'GET');
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestPassageController::class)
+            ->where('path', '.*');
+        $route->bind($request);
+        $route->setParameter('path', $path);
+        $request->setRouteResolver(fn () => $route);
+
+        Http::shouldReceive('withOptions')->never();
+        $this->mockPassageService->shouldReceive('callService')->never();
+
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_BAD_REQUEST);
+        expect($response->getData(true))->toBe(['error' => 'Invalid path']);
+    })->with([
+        'absolute URI with http scheme' => 'http://evil.example.com/x',
+        'absolute URI with https scheme' => 'https://evil.example.com/x',
+        'protocol-relative authority' => '//evil.example.com/x',
+        'scheme-like host:port without a leading slash' => 'evil.example.com:1337/x',
+        'percent-encoded scheme' => 'http%3A%2F%2Fevil.example.com/x',
+        'percent-encoded protocol-relative authority' => '%2F%2Fevil.example.com/x',
+        'double-encoded protocol-relative authority' => '%252F%252Fevil.example.com/x',
+    ]);
+
     it('applies response transformation', function () {
         $request = Request::create('/enriched/posts', 'GET');
         $route = (new Route(['GET'], '/enriched/{path?}', []))

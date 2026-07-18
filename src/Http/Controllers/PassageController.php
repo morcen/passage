@@ -62,7 +62,7 @@ class PassageController extends Controller
             return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
         }
 
-        if ($this->containsDotSegment($path)) {
+        if ($this->containsDotSegment($path) || $this->containsSchemeOrAuthority($path)) {
             return response()->json(['error' => 'Invalid path'], Response::HTTP_BAD_REQUEST);
         }
 
@@ -250,6 +250,36 @@ class PassageController extends Controller
                 if ($segment === '.' || $segment === '..') {
                     return true;
                 }
+            }
+
+            $previous = $decoded;
+            $decoded = rawurldecode($decoded);
+        } while ($decoded !== $previous);
+
+        return false;
+    }
+
+    /**
+     * Detect a path that would resolve to an absolute URI or one carrying
+     * its own authority. Guzzle's base_uri + relative-reference merge
+     * (RFC 3986 §5.3) discards the configured base_uri entirely once the
+     * reference has a scheme (e.g. "http://evil.example.com/x") or an
+     * authority (a leading "//", or a colon in the first path segment,
+     * which PSR-7's Uri parser also treats as introducing a scheme/host),
+     * letting a crafted path redirect the outbound request to an
+     * attacker-chosen host.
+     */
+    private function containsSchemeOrAuthority(string $path): bool
+    {
+        $decoded = $path;
+
+        do {
+            if (str_starts_with($decoded, '//')) {
+                return true;
+            }
+
+            if (str_contains(explode('/', $decoded, 2)[0], ':')) {
+                return true;
             }
 
             $previous = $decoded;
