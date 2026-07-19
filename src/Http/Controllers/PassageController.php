@@ -253,7 +253,7 @@ class PassageController extends Controller
             }
 
             $previous = $decoded;
-            $decoded = rawurldecode($decoded);
+            $decoded = str_replace('\\', '/', rawurldecode($decoded));
         } while ($decoded !== $previous);
 
         return false;
