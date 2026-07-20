@@ -460,6 +460,8 @@ describe('PassageController', function () {
         'mixed-encoded parent segment' => '%2E./private',
         'encoded separator after parent segment' => '%2e%2e%2fprivate',
         'double-encoded parent segment' => '%252e%252e/private',
+        'percent-encoded backslash separator' => '..%5c..%5cetc%5cpasswd',
+        'mixed literal and percent-encoded backslash separator' => '%2e%2e%5cprivate',
     ]);
 
     it('rejects paths that would resolve to a URI with their own scheme or authority', function (string $path) {
