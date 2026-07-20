@@ -170,7 +170,7 @@ describe('HasHmacAuth', function () {
 
         $timestamp = $result->header('X-Timestamp');
         $signature = $result->header('X-Signature');
-        $expected = hash_hmac('sha256', $timestamp.'.'.$body, 'super-secret');
+        $expected = hash_hmac('sha256', $timestamp.'.POST./test..'.$body, 'super-secret');
 
         expect($signature)->toBe($expected);
     });
@@ -185,8 +185,64 @@ describe('HasHmacAuth', function () {
         expect($result->header('X-Req-Sig'))->not->toBeEmpty();
 
         $timestamp = $result->header('X-Req-Time');
-        $expected = hash_hmac('sha512', $timestamp.'.', 'super-secret');
+        $expected = hash_hmac('sha512', $timestamp.'.POST./test..', 'super-secret');
         expect($result->header('X-Req-Sig'))->toBe($expected);
+    });
+
+    it('binds the signature to the HTTP method and path', function () {
+        $handler = new HmacHandler;
+
+        $getRequest = Request::create('/accounts/42/balance', 'GET');
+        $postRequest = Request::create('/accounts/42/balance', 'POST');
+
+        $getResult = $handler->getRequest($getRequest);
+        $postResult = $handler->getRequest($postRequest);
+
+        expect($getResult->header('X-Signature'))->not->toBe($postResult->header('X-Signature'));
+    });
+
+    it('produces a non-trivial signature for a bodyless GET request', function () {
+        $handler = new HmacHandler;
+        $request = Request::create('/accounts/42/balance', 'GET');
+
+        $result = $handler->getRequest($request);
+
+        $timestamp = $result->header('X-Timestamp');
+        $signature = $result->header('X-Signature');
+        $expected = hash_hmac('sha256', $timestamp.'.GET./accounts/42/balance..', 'super-secret');
+
+        expect($signature)->toBe($expected);
+        expect($signature)->not->toBe(hash_hmac('sha256', "{$timestamp}.", 'super-secret'));
+    });
+
+    it('binds the signature to the query string', function () {
+        $handler = new HmacHandler;
+
+        $requestA = Request::create('/accounts/42/balance?currency=USD', 'GET');
+        $requestB = Request::create('/accounts/42/balance?currency=EUR', 'GET');
+
+        $resultA = $handler->getRequest($requestA);
+        $resultB = $handler->getRequest($requestB);
+
+        expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
+    });
+
+    it('canonicalizes the query string so parameter order does not change the signature', function () {
+        $handler = new HmacHandler;
+
+        $requestA = Request::create('/search?b=2&a=1', 'GET');
+        $requestB = Request::create('/search?a=1&b=2', 'GET');
+
+        $resultA = $handler->getRequest($requestA);
+        $resultB = $handler->getRequest($requestB);
+
+        $timestampA = $resultA->header('X-Timestamp');
+        $expected = hash_hmac('sha256', $timestampA.'.GET./search.a=1&b=2.', 'super-secret');
+
+        expect($resultA->header('X-Signature'))->toBe($expected);
+        expect($resultA->header('X-Signature'))->toBe(
+            hash_hmac('sha256', $resultB->header('X-Timestamp').'.GET./search.a=1&b=2.', 'super-secret')
+        );
     });
 
     it('signs the parsed fields of a multipart request instead of the empty raw body', function () {
@@ -202,7 +258,7 @@ describe('HasHmacAuth', function () {
 
         $timestamp = $result->header('X-Timestamp');
         $signature = $result->header('X-Signature');
-        $expectedPayload = $timestamp.'.'.json_encode([
+        $expectedPayload = $timestamp.'.POST./test..'.json_encode([
             'fields' => ['field1' => 'hello', 'field2' => 'world'],
             'files' => [],
         ]);
@@ -224,11 +280,11 @@ describe('HasHmacAuth', function () {
         $resultA = $handlerA->getRequest($requestA);
         $resultB = $handlerB->getRequest($requestB);
 
-        $expectedA = hash_hmac('sha256', $resultA->header('X-Timestamp').'.'.json_encode([
+        $expectedA = hash_hmac('sha256', $resultA->header('X-Timestamp').'.POST./test..'.json_encode([
             'fields' => ['field1' => 'hello'],
             'files' => [],
         ]), 'super-secret');
-        $expectedB = hash_hmac('sha256', $resultB->header('X-Timestamp').'.'.json_encode([
+        $expectedB = hash_hmac('sha256', $resultB->header('X-Timestamp').'.POST./test..'.json_encode([
             'fields' => ['field1' => 'goodbye'],
             'files' => [],
         ]), 'super-secret');
@@ -250,7 +306,7 @@ describe('HasHmacAuth', function () {
 
         $timestamp = $result->header('X-Timestamp');
         $signature = $result->header('X-Signature');
-        $expectedPayload = $timestamp.'.'.json_encode([
+        $expectedPayload = $timestamp.'.POST./test..'.json_encode([
             'fields' => ['comment' => $invalid],
             'files' => [],
         ], JSON_INVALID_UTF8_SUBSTITUTE);

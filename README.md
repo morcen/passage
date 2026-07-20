@@ -373,7 +373,7 @@ public function getRequest(Request $request): Request
 }
 ```
 
-This signs the request body and a timestamp using HMAC-SHA256 and adds `X-Timestamp` and `X-Signature` headers to the outgoing request.
+This signs the timestamp, HTTP method, path, query string, and request body using HMAC-SHA256 and adds `X-Timestamp` and `X-Signature` headers to the outgoing request.
 
 ```bash
 php artisan passage:controller PartnerHandler --with-auth=hmac
