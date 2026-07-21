@@ -68,8 +68,9 @@ trait HasHmacAuth
      *
      * PHP consumes php://input while populating $_POST/$_FILES for
      * multipart/form-data requests, so getContent() is always empty for
-     * them. Sign a stable representation of the parsed fields and file
-     * metadata instead, so the signature still covers what was submitted.
+     * them. Sign a stable representation of the parsed fields and, for each
+     * uploaded file, its metadata plus a content hash — so a swapped file
+     * body invalidates the signature even when name/size/mime are unchanged.
      */
     private function resolveHmacSignedBody(Request $request): string
     {
@@ -85,6 +86,7 @@ trait HasHmacAuth
                     'name' => $singleFile->getClientOriginalName(),
                     'size' => $singleFile->getSize(),
                     'mime' => $singleFile->getMimeType(),
+                    'hash' => hash('sha256', $singleFile->get()),
                 ];
             }
         }
