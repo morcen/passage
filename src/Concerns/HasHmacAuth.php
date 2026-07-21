@@ -11,10 +11,16 @@ trait HasHmacAuth
     /**
      * Sign the outbound request with an HMAC signature.
      *
-     * The signature is computed over: timestamp + "." + request body.
+     * The signature is computed over: timestamp + "." + method + "." + path
+     * + "." + query string + "." + request body. Binding the method, path,
+     * and query string (in addition to the body) prevents an intermediary
+     * from rewriting the request target without invalidating the signature
+     * — this matters most for GET/HEAD requests, which have no body and
+     * would otherwise carry no real signature at all.
+     *
      * Two headers are added to the request:
      *   X-Timestamp  — Unix timestamp used in the signature (replay protection)
-     *   X-Signature  — HMAC hex digest: hash_hmac($algorithm, "$timestamp.$body", $secret)
+     *   X-Signature  — HMAC hex digest of the payload described above
      *
      * The header names and algorithm are configurable.
      *
@@ -30,13 +36,31 @@ trait HasHmacAuth
     ): Request {
         $timestamp = (string) time();
         $body = $this->resolveHmacSignedBody($request);
-        $payload = $timestamp.'.'.$body;
+        $payload = implode('.', [
+            $timestamp,
+            $request->getMethod(),
+            $request->getPathInfo(),
+            $this->resolveHmacSignedQuery($request),
+            $body,
+        ]);
         $signature = hash_hmac($algorithm, $payload, $secret);
 
         $request->headers->set($timestampHeader, $timestamp);
         $request->headers->set($signatureHeader, $signature);
 
         return $request;
+    }
+
+    /**
+     * Resolve a canonical (key-sorted) query string so that reordering query
+     * parameters cannot change the signed payload.
+     */
+    private function resolveHmacSignedQuery(Request $request): string
+    {
+        $query = $request->query();
+        ksort($query);
+
+        return http_build_query($query);
     }
 
     /**
