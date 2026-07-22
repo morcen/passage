@@ -125,5 +125,23 @@ describe('PassageResponseBuilder::build()', function () {
             expect($response->headers->has('transfer-encoding'))->toBeFalse();
             expect($response->headers->get('x-custom'))->toBe('pass-through');
         });
+
+        it('strips a Proxy-Authorization header on the upstream response using the published config default', function () {
+            $upstream = Mockery::mock(Response::class);
+            $upstream->shouldReceive('status')->andReturn(200);
+            $upstream->shouldReceive('body')->andReturn('{}');
+            $upstream->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
+            $upstream->shouldReceive('json')->andReturn([]);
+            $upstream->shouldReceive('headers')->andReturn([
+                'content-type' => ['application/json'],
+                'proxy-authorization' => ['Basic secret-credentials'],
+                'x-custom' => ['pass-through'],
+            ]);
+
+            $response = $this->builder->build($upstream);
+
+            expect($response->headers->has('proxy-authorization'))->toBeFalse();
+            expect($response->headers->get('x-custom'))->toBe('pass-through');
+        });
     });
 });
