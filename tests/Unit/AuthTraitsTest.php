@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\PassageHandler;
 
@@ -313,6 +314,29 @@ describe('HasHmacAuth', function () {
 
         expect($signature)->toBe(hash_hmac('sha256', $expectedPayload, 'super-secret'));
         expect($signature)->not->toBe(hash_hmac('sha256', "{$timestamp}.", 'super-secret'));
+    });
+
+    it('produces different signatures for uploaded files with identical metadata but different content', function () {
+        $handlerA = new HmacHandler;
+        $handlerB = new HmacHandler;
+
+        $fileA = UploadedFile::fake()->createWithContent('avatar.png', str_repeat('A', 16));
+        $fileB = UploadedFile::fake()->createWithContent('avatar.png', str_repeat('B', 16));
+
+        $requestA = Request::create('/test', 'POST', [], [], ['avatar' => $fileA], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+        $requestB = Request::create('/test', 'POST', [], [], ['avatar' => $fileB], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+
+        $resultA = $handlerA->getRequest($requestA);
+        $resultB = $handlerB->getRequest($requestB);
+
+        expect($fileA->getClientOriginalName())->toBe($fileB->getClientOriginalName());
+        expect($fileA->getSize())->toBe($fileB->getSize());
+        expect($fileA->getMimeType())->toBe($fileB->getMimeType());
+        expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
     });
 });
 
