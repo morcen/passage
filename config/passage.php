@@ -93,6 +93,7 @@ return [
         'hop_by_hop_headers' => [
             'host', 'connection', 'transfer-encoding', 'upgrade',
             'keep-alive', 'te', 'trailer', 'proxy-authenticate',
+            'proxy-authorization',
         ],
     ],
 

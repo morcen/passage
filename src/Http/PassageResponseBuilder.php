@@ -10,7 +10,7 @@ class PassageResponseBuilder
 {
     // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
     private const HOP_BY_HOP_FALLBACK = [
-        'connection', 'transfer-encoding', 'upgrade',
+        'host', 'connection', 'transfer-encoding', 'upgrade',
         'keep-alive', 'te', 'trailer', 'proxy-authenticate',
         'proxy-authorization',
     ];
