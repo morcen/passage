@@ -39,7 +39,7 @@ trait HasHmacAuth
         $payload = implode('.', [
             $timestamp,
             $request->getMethod(),
-            $request->getPathInfo(),
+            $this->resolveHmacSignedPath($request),
             $this->resolveHmacSignedQuery($request),
             $body,
         ]);
@@ -49,6 +49,26 @@ trait HasHmacAuth
         $request->headers->set($signatureHeader, $signature);
 
         return $request;
+    }
+
+    /**
+     * Resolve the path to bind into the signature.
+     *
+     * PassageController forwards $request->route('path', '') to Guzzle as
+     * the upstream request target (see PassageController::handle()), which
+     * is only the wildcard remainder of the matched route — not the full
+     * inbound URI (any literal prefix segments of the route definition,
+     * e.g. Passage::post('accounts/{path?}', ...), are stripped). Signing
+     * getPathInfo() would bind the signature to a string the upstream never
+     * actually receives, so mirror the same route parameter here. Fall back
+     * to getPathInfo() when no route is bound (e.g. calling getRequest()
+     * directly, outside of route dispatch).
+     */
+    private function resolveHmacSignedPath(Request $request): string
+    {
+        return $request->route() !== null
+            ? (string) $request->route('path', '')
+            : $request->getPathInfo();
     }
 
     /**
