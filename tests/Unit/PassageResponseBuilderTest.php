@@ -1,8 +1,11 @@
 <?php
 
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
 use Morcen\Passage\Http\PassageResponseBuilder;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 beforeEach(function () {
     $this->builder = new PassageResponseBuilder;
@@ -143,5 +146,63 @@ describe('PassageResponseBuilder::build()', function () {
             expect($response->headers->has('proxy-authorization'))->toBeFalse();
             expect($response->headers->get('x-custom'))->toBe('pass-through');
         });
+    });
+
+    describe('stale Content-Encoding/Content-Length headers', function () {
+        it('strips Content-Encoding and Content-Length since Guzzle already decoded the body', function () {
+            // Guzzle's default decode_content transparently gunzips the body but leaves
+            // Content-Encoding/Content-Length describing the discarded compressed bytes.
+            $upstream = upstreamMock(
+                'plain decoded body',
+                200,
+                'text/plain',
+                ['content-encoding' => ['gzip'], 'content-length' => ['36'], 'x-custom' => ['pass-through']]
+            );
+
+            $response = $this->builder->build($upstream);
+
+            expect($response->headers->has('content-encoding'))->toBeFalse();
+            expect($response->headers->has('content-length'))->toBeFalse();
+            expect($response->headers->get('x-custom'))->toBe('pass-through');
+            expect($response->getContent())->toBe('plain decoded body');
+        });
+
+        it('strips Content-Encoding and Content-Length on JSON responses too', function () {
+            $upstream = upstreamMock(
+                '{"ok":true}',
+                200,
+                'application/json',
+                ['content-encoding' => ['deflate'], 'content-length' => ['10']]
+            );
+
+            $response = $this->builder->build($upstream);
+
+            expect($response->headers->has('content-encoding'))->toBeFalse();
+            expect($response->headers->has('content-length'))->toBeFalse();
+        });
+    });
+});
+
+describe('PassageResponseBuilder::buildStreamedResponse()', function () {
+    it('strips Content-Encoding and Content-Length from the streamed response', function () {
+        $upstream = Mockery::mock(Response::class);
+        $upstream->shouldReceive('status')->andReturn(200);
+        $upstream->shouldReceive('headers')->andReturn([
+            'content-type' => ['text/event-stream'],
+            'content-encoding' => ['gzip'],
+            'content-length' => ['36'],
+            'x-custom' => ['pass-through'],
+        ]);
+
+        $stream = Utils::streamFor('data: hello');
+        $psr7 = new Psr7Response(200, [], $stream);
+        $upstream->shouldReceive('toPsrResponse')->andReturn($psr7);
+
+        $response = $this->builder->buildStreamedResponse($upstream);
+
+        expect($response)->toBeInstanceOf(StreamedResponse::class);
+        expect($response->headers->has('content-encoding'))->toBeFalse();
+        expect($response->headers->has('content-length'))->toBeFalse();
+        expect($response->headers->get('x-custom'))->toBe('pass-through');
     });
 });
