@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Contracts\AcceptsClientHeaders;
@@ -80,6 +81,19 @@ class NoBaseUriHandler extends PassageHandler
     public function getOptions(): array
     {
         return [];
+    }
+}
+
+class HmacIntegrationHandler extends PassageHandler
+{
+    public function getRequest(Request $request): Request
+    {
+        return $this->withHmacSignature($request, 'partner-secret');
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://partner.example.com/'];
     }
 }
 
@@ -231,6 +245,27 @@ describe('Passage Integration Tests', function () {
             $response = $this->get('/redirect-ok/entry');
 
             $response->assertStatus(200)->assertJson(['ok' => true]);
+        });
+    });
+
+    describe('HasHmacAuth path binding', function () {
+        it('signs the path actually forwarded upstream, not the full inbound route path', function () {
+            Http::fake(['https://partner.example.com/*' => Http::response(['ok' => true], 200)]);
+            Passage::post('accounts/{path?}', HmacIntegrationHandler::class);
+
+            $this->postJson('/accounts/42/balance', [])->assertStatus(200);
+
+            Http::assertSent(function ($req) {
+                $timestamp = $req->header('X-Timestamp')[0];
+                $expected = hash_hmac(
+                    'sha256',
+                    implode('.', [$timestamp, 'POST', '42/balance', '', $req->body()]),
+                    'partner-secret'
+                );
+
+                return $req->url() === 'https://partner.example.com/42/balance'
+                    && $req->header('X-Signature')[0] === $expected;
+            });
         });
     });
 
