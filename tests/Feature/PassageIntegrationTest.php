@@ -130,6 +130,18 @@ describe('Passage Integration Tests', function () {
         });
     });
 
+    describe('OPTIONS / CORS preflight', function () {
+        it('proxies an OPTIONS request routed through Passage::any() without crashing', function () {
+            Http::fake(['https://api.example.com/*' => Http::response('', 204)]);
+            Passage::any('any/{path?}', IntegrationTestPassageController::class);
+
+            $this->options('/any/resource')
+                ->assertStatus(204);
+
+            Http::assertSent(fn ($req) => $req->method() === 'OPTIONS' && $req->url() === 'https://api.example.com/resource');
+        });
+    });
+
     describe('non-JSON response passthrough', function () {
         it('passes through XML response with correct Content-Type', function () {
             $xml = '<?xml version="1.0"?><root><id>1</id></root>';
