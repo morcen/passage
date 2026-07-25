@@ -15,6 +15,13 @@ class PassageResponseBuilder
         'proxy-authorization',
     ];
 
+    // Guzzle's default `decode_content` option transparently decompresses gzip/deflate/br
+    // bodies (Passage never disables it), but leaves Content-Encoding/Content-Length on the
+    // response describing the discarded compressed representation. Relaying them verbatim
+    // alongside the already-decoded body corrupts the response for every compressing
+    // upstream, so they must always be stripped rather than passed through.
+    private const STALE_CONTENT_HEADERS = ['content-encoding', 'content-length'];
+
     public function build(Response $upstream): SymfonyResponse
     {
         $status = $upstream->status();
@@ -74,7 +81,9 @@ class PassageResponseBuilder
         $headers = [];
 
         foreach ($upstream->headers() as $name => $values) {
-            if (in_array(strtolower($name), $hopByHop, strict: true)) {
+            $lowerName = strtolower($name);
+
+            if (in_array($lowerName, $hopByHop, strict: true) || in_array($lowerName, self::STALE_CONTENT_HEADERS, strict: true)) {
                 continue;
             }
             $headers[$name] = is_array($values) ? implode(', ', $values) : $values;
