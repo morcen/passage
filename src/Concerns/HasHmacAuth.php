@@ -94,7 +94,7 @@ trait HasHmacAuth
      */
     private function resolveHmacSignedBody(Request $request): string
     {
-        if (! str_contains($request->header('Content-Type', ''), 'multipart/form-data')) {
+        if (! str_contains(strtolower($request->header('Content-Type', '')), 'multipart/form-data')) {
             return $request->getContent();
         }
 

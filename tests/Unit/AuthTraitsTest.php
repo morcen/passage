@@ -338,6 +338,25 @@ describe('HasHmacAuth', function () {
         expect($fileA->getMimeType())->toBe($fileB->getMimeType());
         expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
     });
+
+    it('detects multipart requests regardless of Content-Type casing', function () {
+        $handler = new HmacHandler;
+
+        $request = Request::create('/test', 'POST', ['field1' => 'hello'], [], [], [
+            'CONTENT_TYPE' => 'MULTIPART/FORM-DATA; boundary=----boundary',
+        ], '');
+
+        $result = $handler->getRequest($request);
+
+        $timestamp = $result->header('X-Timestamp');
+        $signature = $result->header('X-Signature');
+        $expectedPayload = $timestamp.'.POST./test..'.json_encode([
+            'fields' => ['field1' => 'hello'],
+            'files' => [],
+        ]);
+
+        expect($signature)->toBe(hash_hmac('sha256', $expectedPayload, 'super-secret'));
+    });
 });
 
 describe('PassageHandler base class', function () {
