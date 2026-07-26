@@ -25,9 +25,9 @@ class PassageService implements PassageServiceInterface
         }
 
         if ($request->isJson()) {
-            return $service
-                ->withBody($request->getContent(), 'application/json')
-                ->{$method}($uri);
+            $service = $service->withBody($request->getContent(), 'application/json');
+
+            return $this->dispatch($service, $method, $uri);
         }
 
         if (count($request->allFiles()) > 0) {
@@ -42,23 +42,39 @@ class PassageService implements PassageServiceInterface
                 }
             }
 
-            return $service->{$method}($uri, $request->post());
+            return $this->dispatch($service, $method, $uri, $request->post(), 'multipart');
         }
 
         $contentType = $request->header('Content-Type', '');
 
         if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
-            return $service->asForm()->{$method}($uri, $request->post());
+            return $this->dispatch($service->asForm(), $method, $uri, $request->post(), 'form_params');
         }
 
         $body = $request->getContent();
 
         if ($body !== '') {
-            return $service
-                ->withBody($body, $contentType ?: 'application/octet-stream')
-                ->{$method}($uri);
+            $service = $service->withBody($body, $contentType ?: 'application/octet-stream');
+
+            return $this->dispatch($service, $method, $uri);
         }
 
-        return $service->{$method}($uri);
+        return $this->dispatch($service, $method, $uri);
+    }
+
+    /**
+     * Dispatch the outbound call. `PendingRequest` only defines magic verb
+     * methods for get/head/post/put/patch/delete — there is no `options()`
+     * method and no macro registered for it, so an OPTIONS request (e.g. a
+     * CORS preflight routed through `Passage::any()`) is sent via Guzzle's
+     * generic `send()` method instead of the undefined magic call.
+     */
+    private function dispatch(PendingRequest $service, string $method, string $uri, array $data = [], ?string $optionKey = null): Response
+    {
+        if ($method !== 'options') {
+            return $optionKey === null ? $service->{$method}($uri) : $service->{$method}($uri, $data);
+        }
+
+        return $service->send('OPTIONS', $uri, $optionKey === null ? [] : [$optionKey => $data]);
     }
 }

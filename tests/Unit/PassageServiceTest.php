@@ -122,6 +122,36 @@ describe('PassageService::callService()', function () {
         });
     });
 
+    describe('OPTIONS requests', function () {
+        it('dispatches via send() since PendingRequest has no options() method', function () {
+            $request = Request::create('/test', 'OPTIONS');
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('send')
+                ->once()
+                ->with('OPTIONS', 'preflight', [])
+                ->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'preflight'))->toBe($mockResponse);
+        });
+
+        it('forwards query parameters on an OPTIONS request', function () {
+            $request = Request::create('/test?debug=1', 'OPTIONS');
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('withQueryParameters')
+                ->once()
+                ->with(['debug' => '1'])
+                ->andReturn($pending);
+            $pending->shouldReceive('send')
+                ->once()
+                ->with('OPTIONS', 'preflight', [])
+                ->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'preflight'))->toBe($mockResponse);
+        });
+    });
+
     describe('header forwarding', function () {
         it('strips hop-by-hop headers', function () {
             $request = Request::create('/test', 'GET');
