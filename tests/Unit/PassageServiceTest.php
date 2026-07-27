@@ -267,5 +267,37 @@ describe('PassageService::callService()', function () {
 
             expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
         });
+
+        it('forwards the parsed fields of a multipart/form-data request with no file fields', function () {
+            // Mirrors PHP's real behavior: multipart requests consume php://input
+            // into $_POST before userland code runs, so getContent() is empty.
+            $request = Request::create('/test', 'POST', ['field1' => 'hello', 'field2' => 'world'], [], [], [
+                'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+            ], '');
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('post')
+                ->once()
+                ->with('submit', ['field1' => 'hello', 'field2' => 'world'])
+                ->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'submit'))->toBe($mockResponse);
+        });
+
+        it('detects a multipart/form-data request with no files regardless of Content-Type casing', function () {
+            $request = Request::create('/test', 'POST', ['field1' => 'hello'], [], [], [
+                'CONTENT_TYPE' => 'MULTIPART/FORM-DATA; boundary=----boundary',
+            ], '');
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('post')
+                ->once()
+                ->with('submit', ['field1' => 'hello'])
+                ->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'submit'))->toBe($mockResponse);
+        });
     });
 });
