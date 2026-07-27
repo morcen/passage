@@ -301,7 +301,7 @@ describe('Passage Integration Tests', function () {
                 ->get('/missing-base-uri/resource')
                 ->assertStatus(500)
                 ->assertJson([
-                    'error' => "Passage handler [NoBaseUriHandler] must return a 'base_uri' from getOptions().",
+                    'error' => 'Upstream configuration error.',
                 ]);
         });
 

@@ -4,7 +4,9 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Morcen\Passage\Events\PassageRequestFailed;
 use Morcen\Passage\Exceptions\DisallowedProxyTargetException;
 use Morcen\Passage\Exceptions\PassageRequestAbortedException;
 use Morcen\Passage\Guards\AllowedHostsGuard;
@@ -224,11 +226,27 @@ describe('PassageController', function () {
 
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_INTERNAL_SERVER_ERROR);
         expect(json_decode($response->getContent(), true))->toBe([
-            'error' => sprintf(
-                'Passage handler [%s] must return a \'base_uri\' from getOptions().',
-                TestNoBaseUriPassageController::class
-            ),
+            'error' => 'Upstream configuration error.',
         ]);
+    });
+
+    it('does not leak the handler class name to the client but still reports it via PassageRequestFailed', function () {
+        Event::fake([PassageRequestFailed::class]);
+
+        $request = Request::create('/no-base-uri/test', 'GET');
+        $route = (new Route(['GET'], '/no-base-uri/{path?}', []))
+            ->defaults('_passage_handler', TestNoBaseUriPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $response = $this->controller->handle($request);
+
+        expect(json_decode($response->getContent(), true)['error'])->not->toContain(TestNoBaseUriPassageController::class);
+
+        Event::assertDispatched(PassageRequestFailed::class, function (PassageRequestFailed $event) {
+            return $event->handler === TestNoBaseUriPassageController::class
+                && str_contains($event->exception->getMessage(), TestNoBaseUriPassageController::class);
+        });
     });
 
     it('returns a JSON 403 when the base_uri host is not in the allowed_hosts list', function () {
@@ -249,8 +267,33 @@ describe('PassageController', function () {
 
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_FORBIDDEN);
         expect(json_decode($response->getContent(), true))->toBe([
-            'error' => 'Upstream host [api.evil.com] is not in the passage allowed_hosts list.',
+            'error' => 'Upstream host is not permitted.',
         ]);
+    });
+
+    it('does not leak the upstream hostname to the client but still reports it via PassageRequestFailed', function () {
+        Event::fake([PassageRequestFailed::class]);
+
+        config([
+            'passage.security.enforce_allowed_hosts' => true,
+            'passage.security.allowed_hosts' => ['api.example.com'],
+        ]);
+
+        $request = Request::create('/blocked-host/test', 'GET');
+        $route = (new Route(['GET'], '/blocked-host/{path?}', []))
+            ->defaults('_passage_handler', TestDisallowedHostPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        Http::shouldReceive('withOptions')->never();
+
+        $response = $this->controller->handle($request);
+
+        expect(json_decode($response->getContent(), true)['error'])->not->toContain('api.evil.com');
+
+        Event::assertDispatched(PassageRequestFailed::class, function (PassageRequestFailed $event) {
+            return str_contains($event->exception->getMessage(), 'api.evil.com');
+        });
     });
 
     it('returns a JSON 403 when an upstream redirect targets a host outside allowed_hosts', function () {
@@ -279,7 +322,7 @@ describe('PassageController', function () {
 
         expect($response->getStatusCode())->toBe(ResponseCode::HTTP_FORBIDDEN);
         expect(json_decode($response->getContent(), true))->toBe([
-            'error' => 'Upstream host [evil.example.com] is not in the passage allowed_hosts list.',
+            'error' => 'Upstream host is not permitted.',
         ]);
     });
 

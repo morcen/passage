@@ -76,9 +76,13 @@ class PassageController extends Controller
 
             $this->allowedHostsGuard->check($mergedOptions['base_uri']);
         } catch (InvalidBaseUriException $e) {
-            return response()->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, 0.0));
+
+            return response()->json(['error' => 'Upstream configuration error.'], Response::HTTP_INTERNAL_SERVER_ERROR);
         } catch (DisallowedProxyTargetException $e) {
-            return response()->json(['error' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, 0.0));
+
+            return response()->json(['error' => 'Upstream host is not permitted.'], Response::HTTP_FORBIDDEN);
         }
 
         // Extract Passage reserved keys before passing options to Guzzle.
@@ -159,7 +163,7 @@ class PassageController extends Controller
             $durationMs = (microtime(true) - $startedAt) * 1000;
             $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
 
-            return response()->json(['error' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return response()->json(['error' => 'Upstream host is not permitted.'], Response::HTTP_FORBIDDEN);
         } catch (ConnectionException|Throwable $e) {
             $durationMs = (microtime(true) - $startedAt) * 1000;
             $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
