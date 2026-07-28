@@ -30,7 +30,15 @@ class PassageService implements PassageServiceInterface
             return $this->dispatch($service, $method, $uri);
         }
 
-        if (count($request->allFiles()) > 0) {
+        $contentType = $request->header('Content-Type', '');
+
+        // PHP consumes php://input while populating $_POST/$_FILES for
+        // multipart/form-data requests, so getContent() is always empty for
+        // them — even when the request has no file fields, only text ones.
+        // Detect the content type directly rather than relying on
+        // allFiles() being non-empty, so plain multipart forms aren't
+        // dropped into the raw-passthrough branch below with no body.
+        if (count($request->allFiles()) > 0 || str_contains(strtolower($contentType), 'multipart/form-data')) {
             foreach ($request->allFiles() as $key => $file) {
                 foreach (Arr::wrap($file) as $index => $singleFile) {
                     $service = $service->attach(
@@ -44,8 +52,6 @@ class PassageService implements PassageServiceInterface
 
             return $this->dispatch($service, $method, $uri, $request->post(), 'multipart');
         }
-
-        $contentType = $request->header('Content-Type', '');
 
         if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
             return $this->dispatch($service->asForm(), $method, $uri, $request->post(), 'form_params');
