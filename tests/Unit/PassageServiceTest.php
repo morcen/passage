@@ -268,6 +268,22 @@ describe('PassageService::callService()', function () {
             expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
         });
 
+        it('forwards a nested/grouped multipart file field without crashing', function () {
+            $file = UploadedFile::fake()->create('avatar.png', 10, 'image/png');
+            $request = Request::create('/test', 'POST');
+            $request->files->set('docs', [0 => ['avatar' => $file]]);
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('attach')
+                ->once()
+                ->with('docs[0][avatar]', $file->get(), 'avatar.png', ['Content-Type' => 'image/png'])
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
+        });
+
         it('forwards the parsed fields of a multipart/form-data request with no file fields', function () {
             // Mirrors PHP's real behavior: multipart requests consume php://input
             // into $_POST before userland code runs, so getContent() is empty.
