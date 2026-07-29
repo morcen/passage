@@ -5,8 +5,8 @@ namespace Morcen\Passage\Services;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Morcen\Passage\Support\ForwardedHeaderResolver;
+use Morcen\Passage\Support\NestedFileResolver;
 
 class PassageService implements PassageServiceInterface
 {
@@ -39,15 +39,13 @@ class PassageService implements PassageServiceInterface
         // allFiles() being non-empty, so plain multipart forms aren't
         // dropped into the raw-passthrough branch below with no body.
         if (count($request->allFiles()) > 0 || str_contains(strtolower($contentType), 'multipart/form-data')) {
-            foreach ($request->allFiles() as $key => $file) {
-                foreach (Arr::wrap($file) as $index => $singleFile) {
-                    $service = $service->attach(
-                        is_array($file) ? "{$key}[{$index}]" : $key,
-                        $singleFile->get(),
-                        $singleFile->getClientOriginalName(),
-                        ['Content-Type' => $singleFile->getMimeType()]
-                    );
-                }
+            foreach (NestedFileResolver::flatten($request->allFiles()) as $key => $singleFile) {
+                $service = $service->attach(
+                    $key,
+                    $singleFile->get(),
+                    $singleFile->getClientOriginalName(),
+                    ['Content-Type' => $singleFile->getMimeType()]
+                );
             }
 
             return $this->dispatch($service, $method, $uri, $request->post(), 'multipart');

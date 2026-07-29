@@ -339,6 +339,34 @@ describe('HasHmacAuth', function () {
         expect($resultA->header('X-Signature'))->not->toBe($resultB->header('X-Signature'));
     });
 
+    it('signs a nested/grouped multipart file field instead of crashing', function () {
+        $handler = new HmacHandler;
+        $file = UploadedFile::fake()->createWithContent('id-card.png', 'card-bytes');
+
+        $request = Request::create('/test', 'POST', [], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=----boundary',
+        ], '');
+        $request->files->set('docs', [0 => ['avatar' => $file]]);
+
+        $result = $handler->getRequest($request);
+
+        $timestamp = $result->header('X-Timestamp');
+        $signature = $result->header('X-Signature');
+        $expectedPayload = $timestamp.'.POST./test..'.json_encode([
+            'fields' => [],
+            'files' => [
+                'docs[0][avatar]' => [
+                    'name' => $file->getClientOriginalName(),
+                    'size' => $file->getSize(),
+                    'mime' => $file->getMimeType(),
+                    'hash' => hash('sha256', $file->get()),
+                ],
+            ],
+        ]);
+
+        expect($signature)->toBe(hash_hmac('sha256', $expectedPayload, 'super-secret'));
+    });
+
     it('detects multipart requests regardless of Content-Type casing', function () {
         $handler = new HmacHandler;
 

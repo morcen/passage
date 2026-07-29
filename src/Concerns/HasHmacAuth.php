@@ -3,7 +3,7 @@
 namespace Morcen\Passage\Concerns;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
+use Morcen\Passage\Support\NestedFileResolver;
 use RuntimeException;
 
 trait HasHmacAuth
@@ -100,15 +100,13 @@ trait HasHmacAuth
 
         $files = [];
 
-        foreach ($request->allFiles() as $key => $file) {
-            foreach (Arr::wrap($file) as $index => $singleFile) {
-                $files[is_array($file) ? "{$key}[{$index}]" : $key] = [
-                    'name' => $singleFile->getClientOriginalName(),
-                    'size' => $singleFile->getSize(),
-                    'mime' => $singleFile->getMimeType(),
-                    'hash' => hash('sha256', $singleFile->get()),
-                ];
-            }
+        foreach (NestedFileResolver::flatten($request->allFiles()) as $key => $singleFile) {
+            $files[$key] = [
+                'name' => $singleFile->getClientOriginalName(),
+                'size' => $singleFile->getSize(),
+                'mime' => $singleFile->getMimeType(),
+                'hash' => hash('sha256', $singleFile->get()),
+            ];
         }
 
         $encoded = json_encode([
