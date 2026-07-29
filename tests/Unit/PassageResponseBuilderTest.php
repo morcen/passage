@@ -62,6 +62,34 @@ describe('PassageResponseBuilder::build()', function () {
 
             expect($response->getStatusCode())->toBe(404);
         });
+
+        it('returns an empty body for a 204 response with an application/json content type', function () {
+            $upstream = upstreamMock('', 204, 'application/json');
+
+            $response = $this->builder->build($upstream);
+
+            expect($response)->not->toBeInstanceOf(JsonResponse::class);
+            expect($response->getStatusCode())->toBe(204);
+            expect($response->getContent())->toBe('');
+        });
+
+        it('returns a bare JSON null for a literal "null" body', function () {
+            $upstream = upstreamMock('null', 200, 'application/json');
+
+            $response = $this->builder->build($upstream);
+
+            expect($response)->toBeInstanceOf(JsonResponse::class);
+            expect($response->getContent())->toBe('null');
+        });
+
+        it('passes malformed JSON through untouched instead of double-encoding it', function () {
+            $upstream = upstreamMock('not valid json', 200, 'application/json');
+
+            $response = $this->builder->build($upstream);
+
+            expect($response)->not->toBeInstanceOf(JsonResponse::class);
+            expect($response->getContent())->toBe('not valid json');
+        });
     });
 
     describe('XML responses', function () {
