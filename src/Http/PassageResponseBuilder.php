@@ -3,6 +3,7 @@
 namespace Morcen\Passage\Http;
 
 use Illuminate\Http\Client\Response;
+use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -29,12 +30,12 @@ class PassageResponseBuilder
         $headers = $this->resolveResponseHeaders($upstream);
         $contentType = $upstream->header('Content-Type');
 
-        if (str_contains($contentType, 'application/json')) {
-            return response()->json(
-                $upstream->json() ?? $body,
-                $status,
-                $headers
-            );
+        if (str_contains($contentType, 'application/json') && $body !== '') {
+            json_decode($body);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return JsonResponse::fromJsonString($body, $status, $headers);
+            }
         }
 
         $response = response($body, $status);
