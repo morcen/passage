@@ -36,7 +36,8 @@ class PassageErrorHandler
             $cause = $e->getPrevious();
             if ($cause instanceof ConnectException) {
                 $context = $cause->getHandlerContext();
-                if (isset($context['errno']) && $context['errno'] === CURLE_OPERATION_TIMEDOUT) {
+                $timeoutErrno = $this->curlOperationTimedOutErrno();
+                if (isset($context['errno']) && $timeoutErrno !== null && $context['errno'] === $timeoutErrno) {
                     return Response::HTTP_GATEWAY_TIMEOUT; // 504
                 }
             }
@@ -49,6 +50,15 @@ class PassageErrorHandler
         }
 
         return Response::HTTP_INTERNAL_SERVER_ERROR; // 500
+    }
+
+    /**
+     * `CURLE_OPERATION_TIMEDOUT` only exists when PHP's curl extension is loaded;
+     * referencing it directly would throw a fatal error on curl-less installs.
+     */
+    protected function curlOperationTimedOutErrno(): ?int
+    {
+        return defined('CURLE_OPERATION_TIMEDOUT') ? CURLE_OPERATION_TIMEDOUT : null;
     }
 
     private function resolveMessage(Throwable $e, int $status): string
