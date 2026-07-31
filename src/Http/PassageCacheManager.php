@@ -38,7 +38,9 @@ class PassageCacheManager
 
     /**
      * Store an upstream response in the cache.
-     * No-op for non-cacheable methods.
+     * No-op for non-cacheable methods or non-2xx responses, so a transient
+     * upstream failure is never frozen into the cache and replayed to every
+     * client for the full TTL.
      *
      * @param  int  $ttl  Cache time-to-live in seconds.
      * @param  array  $options  Request options used to generate the cache key.
@@ -50,7 +52,7 @@ class PassageCacheManager
      */
     public function put(string $method, string $fullUrl, int $ttl, array $options, Response $response, array $query = [], array $headers = []): void
     {
-        if (! $this->isCacheable($method)) {
+        if (! $this->isCacheable($method) || ! $response->successful()) {
             return;
         }
 
