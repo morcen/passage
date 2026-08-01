@@ -108,6 +108,7 @@ function jsonMockResponse(array $data = [], int $status = 200): Response
 {
     $mock = Mockery::mock(Response::class);
     $mock->shouldReceive('status')->andReturn($status);
+    $mock->shouldReceive('successful')->andReturn($status >= 200 && $status < 300);
     $mock->shouldReceive('json')->andReturn($data);
     $mock->shouldReceive('body')->andReturn(json_encode($data));
     $mock->shouldReceive('header')->with('Content-Type')->andReturn('application/json');
@@ -201,6 +202,29 @@ describe('3.2 Response caching', function () {
 
         expect($first->getStatusCode())->toBe(200);
         expect($second->getStatusCode())->toBe(200);
+    });
+
+    it('does not cache a non-2xx upstream response', function () {
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        $request = phase3Route(CachedHandler::class);
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        // Both calls hit upstream: the first response is a transient 503, so it
+        // must never be cached and replayed to the second request.
+        $this->mockService->shouldReceive('callService')
+            ->twice()
+            ->andReturn(jsonMockResponse(['error' => 'unavailable'], 503));
+
+        $first = phase3Controller()->handle($request);
+        $second = phase3Controller()->handle(phase3Route(CachedHandler::class));
+
+        expect($first->getStatusCode())->toBe(503);
+        expect($second->getStatusCode())->toBe(503);
     });
 
     it('does not serve a cached response to a request with a different query string', function () {
