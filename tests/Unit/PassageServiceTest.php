@@ -47,15 +47,31 @@ describe('PassageService::callService()', function () {
     });
 
     describe('POST requests', function () {
-        it('sends form-urlencoded body with asForm()', function () {
+        it('forwards the raw form-urlencoded body verbatim', function () {
             $request = Request::create('/test', 'POST', ['name' => 'Alice', 'role' => 'admin']);
             $mockResponse = Mockery::mock(Response::class);
             $pending = mockPending();
-            $pending->shouldReceive('asForm')->once()->andReturn($pending);
-            $pending->shouldReceive('post')
+            $pending->shouldReceive('withBody')
                 ->once()
-                ->with('users', ['name' => 'Alice', 'role' => 'admin'])
-                ->andReturn($mockResponse);
+                ->with($request->getContent(), 'application/x-www-form-urlencoded')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
+        });
+
+        it('preserves duplicate keys in the forwarded form-urlencoded body', function () {
+            $body = 'a=1&a=2';
+            $request = Request::create('/test', 'POST', [], [], [], [
+                'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+            ], $body);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('withBody')
+                ->once()
+                ->with($body, 'application/x-www-form-urlencoded')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
 
             expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
         });
@@ -98,11 +114,11 @@ describe('PassageService::callService()', function () {
             $request = Request::create('/test', 'PUT', ['status' => 'active']);
             $mockResponse = Mockery::mock(Response::class);
             $pending = mockPending();
-            $pending->shouldReceive('asForm')->once()->andReturn($pending);
-            $pending->shouldReceive('put')
+            $pending->shouldReceive('withBody')
                 ->once()
-                ->with('users/1', ['status' => 'active'])
-                ->andReturn($mockResponse);
+                ->with($request->getContent(), 'application/x-www-form-urlencoded')
+                ->andReturn($pending);
+            $pending->shouldReceive('put')->once()->with('users/1')->andReturn($mockResponse);
 
             expect($this->service->callService($request, $pending, 'users/1'))->toBe($mockResponse);
         });
@@ -111,12 +127,15 @@ describe('PassageService::callService()', function () {
     describe('DELETE requests', function () {
         it('sends DELETE with no body', function () {
             // Request::create() auto-sets application/x-www-form-urlencoded for DELETE.
-            // With no params, asForm() is called with an empty array — harmless but expected.
+            // With no params, withBody() is called with an empty string — harmless but expected.
             $request = Request::create('/test', 'DELETE');
             $mockResponse = Mockery::mock(Response::class);
             $pending = mockPending();
-            $pending->shouldReceive('asForm')->once()->andReturn($pending);
-            $pending->shouldReceive('delete')->once()->with('users/1', [])->andReturn($mockResponse);
+            $pending->shouldReceive('withBody')
+                ->once()
+                ->with('', 'application/x-www-form-urlencoded')
+                ->andReturn($pending);
+            $pending->shouldReceive('delete')->once()->with('users/1')->andReturn($mockResponse);
 
             expect($this->service->callService($request, $pending, 'users/1'))->toBe($mockResponse);
         });
