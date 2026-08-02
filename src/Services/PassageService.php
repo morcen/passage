@@ -52,7 +52,14 @@ class PassageService implements PassageServiceInterface
         }
 
         if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
-            return $this->dispatch($service->asForm(), $method, $uri, $request->post(), 'form_params');
+            // Forward the raw body verbatim instead of re-encoding $request->post()
+            // via asForm(): the parsed array has already been url-decoded and, for
+            // duplicate keys, collapsed to the last value, so re-encoding it can
+            // produce bytes that differ from what HasHmacAuth::resolveHmacSignedBody()
+            // signed (which signs the raw body for non-multipart requests).
+            $service = $service->withBody($request->getContent(), $contentType);
+
+            return $this->dispatch($service, $method, $uri);
         }
 
         $body = $request->getContent();
