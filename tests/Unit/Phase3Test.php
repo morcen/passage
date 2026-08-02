@@ -433,11 +433,11 @@ describe('3.3 Upstream error handling', function () {
 });
 
 describe('3.4 Streaming', function () {
-    it('passage_streaming is stripped from guzzle options', function () {
+    it('passage_streaming is stripped from guzzle options and replaced with a Guzzle stream option', function () {
         $request = phase3Route(StreamingHandler::class);
 
         Http::shouldReceive('withOptions')
-            ->withArgs(fn (array $opts) => ! array_key_exists('passage_streaming', $opts))
+            ->withArgs(fn (array $opts) => ! array_key_exists('passage_streaming', $opts) && ($opts['stream'] ?? null) === true)
             ->once()
             ->andReturn(Mockery::mock(PendingRequest::class));
 
@@ -456,6 +456,21 @@ describe('3.4 Streaming', function () {
         $response = phase3Controller()->handle($request);
 
         expect($response)->toBeInstanceOf(StreamedResponse::class);
+        expect($response->getStatusCode())->toBe(200);
+    });
+
+    it('does not set the Guzzle stream option when passage_streaming is not enabled', function () {
+        $request = phase3Route(BaseUriOnlyHandler::class);
+
+        Http::shouldReceive('withOptions')
+            ->withArgs(fn (array $opts) => ! array_key_exists('stream', $opts))
+            ->once()
+            ->andReturn(Mockery::mock(PendingRequest::class));
+
+        $this->mockService->shouldReceive('callService')->once()->andReturn(jsonMockResponse());
+
+        $response = phase3Controller()->handle($request);
+
         expect($response->getStatusCode())->toBe(200);
     });
 });
