@@ -76,6 +76,18 @@ class BaseUriOnlyHandler extends PassageHandler
     }
 }
 
+class CachedHandlerWithCallableOption extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return [
+            'base_uri' => 'https://api.example.com/',
+            'passage_cache_ttl' => 60,
+            'on_stats' => function () {},
+        ];
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -374,6 +386,29 @@ describe('3.2 Response caching', function () {
 
         $first = phase3Controller()->handle(phase3Route(CachedHandler::class));
         $second = phase3Controller()->handle(phase3Route(CachedHandler::class));
+
+        expect($first->getStatusCode())->toBe(200);
+        expect($second->getStatusCode())->toBe(200);
+    });
+
+    it('serves a cached GET response when a handler sets a callable guzzle option', function () {
+        // Regression test for #84: PassageCacheManager::key() used to
+        // serialize() the full options array unconditionally, which throws
+        // when a handler sets a callable Guzzle option (e.g. on_stats)
+        // directly, crashing every request on the cached route.
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        $this->mockService->shouldReceive('callService')
+            ->once()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $first = phase3Controller()->handle(phase3Route(CachedHandlerWithCallableOption::class));
+        $second = phase3Controller()->handle(phase3Route(CachedHandlerWithCallableOption::class));
 
         expect($first->getStatusCode())->toBe(200);
         expect($second->getStatusCode())->toBe(200);
