@@ -98,6 +98,13 @@ class PassageController extends Controller
             $guzzleOptions['allow_redirects'] = $this->guardRedirects($guzzleOptions['allow_redirects'] ?? true);
         }
 
+        // Tell Guzzle to keep the upstream body as a lazily-read stream instead of
+        // buffering it into memory, so buildStreamedResponse() can actually stream
+        // it to the client rather than re-chunking an already-downloaded body.
+        if (! empty($passageOptions['passage_streaming'])) {
+            $guzzleOptions['stream'] = true;
+        }
+
         $pendingRequest = Http::withOptions($guzzleOptions);
 
         if (isset($passageOptions['passage_retry_times'])) {
