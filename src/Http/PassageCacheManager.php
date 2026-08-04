@@ -86,7 +86,27 @@ class PassageCacheManager
         ksort($query);
         ksort($headers);
 
-        return 'passage:'.md5($method.$fullUrl.serialize($query).serialize($options).serialize($headers));
+        return 'passage:'.md5($method.$fullUrl.serialize($query).serialize($this->sanitizeForKey($options)).serialize($headers));
+    }
+
+    /**
+     * Strip non-scalar values (closures, streams, cookie jars, etc.) from a
+     * Guzzle options array before it is serialized into the cache key.
+     * Guzzle options accept callables (e.g. `on_stats`, `handler`) that
+     * serialize() cannot handle and that don't meaningfully identify a
+     * cached response anyway.
+     */
+    private function sanitizeForKey(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map(fn ($item) => $this->sanitizeForKey($item), $value);
+        }
+
+        if (is_scalar($value) || $value === null) {
+            return $value;
+        }
+
+        return null;
     }
 
     /**
