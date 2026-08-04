@@ -73,14 +73,32 @@ trait HasHmacAuth
 
     /**
      * Resolve a canonical (key-sorted) query string so that reordering query
-     * parameters cannot change the signed payload.
+     * parameters — including nested/array parameters — cannot change the
+     * signed payload.
      */
     private function resolveHmacSignedQuery(Request $request): string
     {
         $query = $request->query();
-        ksort($query);
+        $this->recursiveKsort($query);
 
         return http_build_query($query);
+    }
+
+    /**
+     * Recursively key-sort an array in place so nested/array query
+     * parameters (e.g. filter[b]=2&filter[a]=1) canonicalize the same way
+     * regardless of the order the client submitted them in. ksort() alone
+     * only sorts the top-level keys, leaving nested arrays order-dependent.
+     */
+    private function recursiveKsort(array &$array): void
+    {
+        ksort($array);
+
+        foreach ($array as &$value) {
+            if (is_array($value)) {
+                $this->recursiveKsort($value);
+            }
+        }
     }
 
     /**
