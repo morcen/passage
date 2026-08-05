@@ -246,6 +246,24 @@ describe('HasHmacAuth', function () {
         );
     });
 
+    it('canonicalizes nested/array query parameters regardless of submission order', function () {
+        $handler = new HmacHandler;
+
+        $requestA = Request::create('/search?filter[a]=1&filter[b]=2', 'GET');
+        $requestB = Request::create('/search?filter[b]=2&filter[a]=1', 'GET');
+
+        $resultA = $handler->getRequest($requestA);
+        $resultB = $handler->getRequest($requestB);
+
+        $timestampA = $resultA->header('X-Timestamp');
+        $expected = hash_hmac('sha256', $timestampA.'.GET./search.'.http_build_query(['filter' => ['a' => '1', 'b' => '2']]).'.', 'super-secret');
+
+        expect($resultA->header('X-Signature'))->toBe($expected);
+        expect($resultA->header('X-Signature'))->toBe(
+            hash_hmac('sha256', $resultB->header('X-Timestamp').'.GET./search.'.http_build_query(['filter' => ['a' => '1', 'b' => '2']]).'.', 'super-secret')
+        );
+    });
+
     it('signs the parsed fields of a multipart request instead of the empty raw body', function () {
         $handler = new HmacHandler;
 
