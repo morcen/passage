@@ -484,6 +484,8 @@ public function getOptions(): array
 
 When streaming is enabled, the `getResponse()` transformation hook is skipped (the response body has not been read yet). The Content-Type and other upstream headers are still passed through.
 
+`passage_cache_ttl` and `passage_streaming` cannot be combined on the same handler: the upstream body is a single-pass stream, and reading it once for a cache write would leave nothing for the client. If a handler sets both, caching is silently disabled and every request is streamed straight through — set only one of the two options per handler.
+
 ---
 
 ## Observability
