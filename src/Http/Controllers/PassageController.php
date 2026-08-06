@@ -144,8 +144,16 @@ class PassageController extends Controller
             return response()->json(['error' => $e->getMessage()], $e->getHttpStatus());
         }
 
+        // Streaming reads the upstream body as a lazy, single-pass PSR-7 stream (see the
+        // `stream => true` Guzzle option set above), so nothing else may consume that
+        // stream first. Caching is therefore disabled whenever streaming is enabled: a
+        // cache write would exhaust the stream before buildStreamedResponse() can read it,
+        // producing an empty/truncated response, and a cache hit would silently bypass
+        // streaming (and its getResponse() skip) for a response the handler asked to stream.
+        $isStreaming = ! empty($passageOptions['passage_streaming']);
+
         // Check cache before making the upstream call.
-        $cacheTtl = $passageOptions['passage_cache_ttl'] ?? null;
+        $cacheTtl = $isStreaming ? null : ($passageOptions['passage_cache_ttl'] ?? null);
         $fullUrl = rtrim($mergedOptions['base_uri'], '/').'/'.$path;
         // Same headers PassageService forwards upstream, so a cache entry is never
         // shared between requests that carry different credentials/identity.
@@ -185,7 +193,7 @@ class PassageController extends Controller
         }
 
         // Streaming: skip getResponse() hook and return directly.
-        if (! empty($passageOptions['passage_streaming'])) {
+        if ($isStreaming) {
             $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, $durationMs, false));
 
             return $this->responseBuilder->buildStreamedResponse($upstream);

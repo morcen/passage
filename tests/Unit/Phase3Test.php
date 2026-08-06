@@ -68,6 +68,18 @@ class StreamingHandler extends PassageHandler
     }
 }
 
+class CachedStreamingHandler extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return [
+            'base_uri' => 'https://api.example.com/',
+            'passage_cache_ttl' => 60,
+            'passage_streaming' => true,
+        ];
+    }
+}
+
 class BaseUriOnlyHandler extends PassageHandler
 {
     public function getOptions(): array
@@ -507,6 +519,51 @@ describe('3.4 Streaming', function () {
         $response = phase3Controller()->handle($request);
 
         expect($response->getStatusCode())->toBe(200);
+    });
+
+    it('does not truncate the streamed body when passage_cache_ttl is also set', function () {
+        // Regression test for #85: caching used to read the upstream body via
+        // Response::body() before buildStreamedResponse() got a chance to read
+        // from the same lazy PSR-7 stream, serving an empty/truncated body to
+        // the client. Caching is now disabled whenever streaming is enabled.
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        Http::shouldReceive('withOptions')
+            ->withArgs(fn (array $opts) => ($opts['stream'] ?? null) === true)
+            ->twice()
+            ->andReturn(Mockery::mock(PendingRequest::class));
+
+        $streamMockResponse = function () {
+            $upstream = Mockery::mock(Response::class);
+            $upstream->shouldReceive('status')->andReturn(200);
+            $upstream->shouldReceive('headers')->andReturn([]);
+            $upstream->shouldReceive('header')->with('Content-Type')->andReturn('text/event-stream');
+
+            $stream = Utils::streamFor('data: hello');
+            $psr7 = new GuzzleHttp\Psr7\Response(200, [], $stream);
+            $upstream->shouldReceive('toPsrResponse')->andReturn($psr7);
+
+            return $upstream;
+        };
+
+        // Both requests must reach the upstream: since caching is disabled while
+        // streaming, there is never a cache hit for this handler.
+        $this->mockService->shouldReceive('callService')
+            ->twice()
+            ->andReturn($streamMockResponse());
+
+        $first = phase3Controller()->handle(phase3Route(CachedStreamingHandler::class));
+
+        ob_start();
+        $first->sendContent();
+        $firstBody = ob_get_clean();
+
+        $second = phase3Controller()->handle(phase3Route(CachedStreamingHandler::class));
+
+        expect($first)->toBeInstanceOf(StreamedResponse::class);
+        expect($firstBody)->toBe('data: hello');
+        expect($second)->toBeInstanceOf(StreamedResponse::class);
     });
 });
 
