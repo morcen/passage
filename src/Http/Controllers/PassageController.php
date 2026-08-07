@@ -108,10 +108,17 @@ class PassageController extends Controller
         $pendingRequest = Http::withOptions($guzzleOptions);
 
         if (isset($passageOptions['passage_retry_times'])) {
+            // throw: false — Passage always forwards the upstream response as-is (see
+            // "Upstream 4xx and 5xx responses are passed through unchanged" below);
+            // without this, Laravel's retry() throws a RequestException for the final
+            // non-2xx response once $tries > 1, regardless of what $when decided, and
+            // that exception would be swallowed by the generic catch below and reported
+            // as an opaque 500 instead of the real upstream status/body.
             $pendingRequest = $pendingRequest->retry(
                 $passageOptions['passage_retry_times'],
                 $passageOptions['passage_retry_sleep_ms'] ?? 100,
                 $passageOptions['passage_retry_when'] ?? null,
+                throw: false,
             );
         }
 

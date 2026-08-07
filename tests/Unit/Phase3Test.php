@@ -1,8 +1,10 @@
 <?php
 
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
@@ -193,12 +195,66 @@ describe('3.1 Retry ergonomics', function () {
         phase3Controller()->handle($request);
     });
 
+    it('calls retry() with throw: false so the real upstream response is always returned', function () {
+        $request = phase3Route(RetryableHandler::class);
+
+        Http::shouldReceive('withOptions')->once()->andReturn(
+            Mockery::mock(PendingRequest::class)
+                ->shouldReceive('retry')
+                ->withArgs(fn ($times, $sleepMs, $when, $throw) => $throw === false)
+                ->once()
+                ->andReturnSelf()
+                ->getMock()
+        );
+
+        $this->mockService->shouldReceive('callService')
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        phase3Controller()->handle($request);
+    });
+
     it('withRetry() is available on PassageHandler subclasses', function () {
         $handler = new RetryableHandler;
         $opts = $handler->getOptions();
 
         expect($opts)->toHaveKey('passage_retry_times', 3);
         expect($opts)->toHaveKey('passage_retry_sleep_ms', 50);
+    });
+
+    it('withRetry() defaults passage_retry_when to connection errors and 5xx only, not 4xx', function () {
+        $handler = new class
+        {
+            use HasResilienceOptions;
+
+            public function options(): array
+            {
+                return $this->withRetry(3, 200);
+            }
+        };
+
+        $when = $handler->options()['passage_retry_when'];
+
+        expect($when)->toBeCallable();
+        expect($when(new ConnectionException('Connection timed out')))->toBeTrue();
+        expect($when(new RequestException(new Response(new Psr7Response(500)))))->toBeTrue();
+        expect($when(new RequestException(new Response(new Psr7Response(409)))))->toBeFalse();
+        expect($when(new RequestException(new Response(new Psr7Response(422)))))->toBeFalse();
+    });
+
+    it('withRetry() keeps an explicitly passed $when instead of the default', function () {
+        $custom = fn () => false;
+
+        $handler = new class
+        {
+            use HasResilienceOptions;
+
+            public function options(?callable $when): array
+            {
+                return $this->withRetry(3, 200, $when);
+            }
+        };
+
+        expect($handler->options($custom))->toHaveKey('passage_retry_when', $custom);
     });
 });
 
@@ -495,7 +551,7 @@ describe('3.4 Streaming', function () {
 
         // toPsrResponse() → PSR-7 Response with a stream body
         $stream = Utils::streamFor('data: hello');
-        $psr7 = new GuzzleHttp\Psr7\Response(200, [], $stream);
+        $psr7 = new Psr7Response(200, [], $stream);
         $upstreamMock->shouldReceive('toPsrResponse')->andReturn($psr7);
 
         $this->mockService->shouldReceive('callService')->once()->andReturn($upstreamMock);
@@ -541,7 +597,7 @@ describe('3.4 Streaming', function () {
             $upstream->shouldReceive('header')->with('Content-Type')->andReturn('text/event-stream');
 
             $stream = Utils::streamFor('data: hello');
-            $psr7 = new GuzzleHttp\Psr7\Response(200, [], $stream);
+            $psr7 = new Psr7Response(200, [], $stream);
             $upstream->shouldReceive('toPsrResponse')->andReturn($psr7);
 
             return $upstream;

@@ -97,6 +97,17 @@ class HmacIntegrationHandler extends PassageHandler
     }
 }
 
+class DefaultRetryHandler extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return array_merge(
+            ['base_uri' => 'https://retry.example.com/'],
+            $this->withRetry(3, 1)
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -278,6 +289,37 @@ describe('Passage Integration Tests', function () {
                 return $req->url() === 'https://partner.example.com/42/balance'
                     && $req->header('X-Signature')[0] === $expected;
             });
+        });
+    });
+
+    describe('Retry', function () {
+        it('retries on 5xx responses by default and eventually returns the last response', function () {
+            Http::fake([
+                'https://retry.example.com/*' => Http::sequence()
+                    ->push(['error' => 'boom'], 500)
+                    ->push(['error' => 'boom'], 500)
+                    ->push(['ok' => true], 200),
+            ]);
+            Passage::get('retry-5xx/{path?}', DefaultRetryHandler::class);
+
+            $this->get('/retry-5xx/resource')
+                ->assertStatus(200)
+                ->assertJson(['ok' => true]);
+
+            Http::assertSentCount(3);
+        });
+
+        it('does not retry on a 4xx response by default', function () {
+            Http::fake([
+                'https://retry.example.com/*' => Http::response(['error' => 'conflict'], 409),
+            ]);
+            Passage::get('retry-4xx/{path?}', DefaultRetryHandler::class);
+
+            $this->get('/retry-4xx/resource')
+                ->assertStatus(409)
+                ->assertJson(['error' => 'conflict']);
+
+            Http::assertSentCount(1);
         });
     });
 

@@ -406,14 +406,16 @@ class PaymentsHandler extends PassageHandler
 php artisan passage:controller PaymentsHandler --with-retry
 ```
 
-`withRetry($times, $sleepMs, ?callable $when)` accepts an optional third argument — a callable that receives the exception and the pending request and returns `true` if the request should be retried:
+By default (no `$when` given), Passage only retries connection errors and 5xx responses — it never retries 4xx client errors, since retrying a non-idempotent upstream call after a `409`/`422` can cause duplicate side effects.
+
+`withRetry($times, $sleepMs, ?callable $when)` accepts an optional third argument — a callable that receives the exception and the pending request and returns `true` if the request should be retried — to customize this behavior:
 
 ```php
 $this->withRetry(
     times: 3,
     sleepMs: 200,
     when: function (\Exception $e, \Illuminate\Http\Client\PendingRequest $request) {
-        // Only retry on connection errors, not on 4xx responses
+        // Only retry connection errors, never HTTP error responses
         return $e instanceof \Illuminate\Http\Client\ConnectionException;
     }
 )
