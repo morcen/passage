@@ -90,6 +90,20 @@ describe('PassageService::callService()', function () {
             expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
         });
 
+        it('forwards a vendor JSON content type unchanged instead of rewriting it to application/json', function () {
+            $body = json_encode(['op' => 'replace', 'path' => '/name', 'value' => 'Alice']);
+            $request = Request::create('/test', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/vnd.api+json'], $body);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('withBody')
+                ->once()
+                ->with($body, 'application/vnd.api+json')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
+        });
+
         it('separates query params from JSON body', function () {
             $body = json_encode(['name' => 'Alice']);
             $request = Request::create('/test?dry_run=1', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);

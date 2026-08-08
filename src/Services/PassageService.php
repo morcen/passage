@@ -25,7 +25,7 @@ class PassageService implements PassageServiceInterface
         }
 
         if ($request->isJson()) {
-            $service = $service->withBody($request->getContent(), 'application/json');
+            $service = $service->withBody($request->getContent(), $request->header('Content-Type', 'application/json'));
 
             return $this->dispatch($service, $method, $uri);
         }
