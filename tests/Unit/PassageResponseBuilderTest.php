@@ -90,6 +90,20 @@ describe('PassageResponseBuilder::build()', function () {
             expect($response)->not->toBeInstanceOf(JsonResponse::class);
             expect($response->getContent())->toBe('not valid json');
         });
+
+        it('returns a plain response without warnings when the upstream omits Content-Type entirely', function () {
+            $upstream = Mockery::mock(Response::class);
+            $upstream->shouldReceive('status')->andReturn(204);
+            $upstream->shouldReceive('body')->andReturn('');
+            $upstream->shouldReceive('header')->with('Content-Type')->andReturn(null);
+            $upstream->shouldReceive('headers')->andReturn([]);
+
+            $response = $this->builder->build($upstream);
+
+            expect($response)->not->toBeInstanceOf(JsonResponse::class);
+            expect($response->getStatusCode())->toBe(204);
+            expect($response->getContent())->toBe('');
+        });
     });
 
     describe('XML responses', function () {
