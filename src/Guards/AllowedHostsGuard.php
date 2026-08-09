@@ -47,9 +47,9 @@ class AllowedHostsGuard
             return;
         }
 
-        $allowedHosts = config('passage.security.allowed_hosts', []);
+        $allowedHosts = array_map('strtolower', config('passage.security.allowed_hosts', []));
 
-        if (! in_array($host, $allowedHosts, strict: true)) {
+        if (! in_array(strtolower($host), $allowedHosts, strict: true)) {
             throw new DisallowedProxyTargetException(
                 "Upstream host [{$host}] is not in the passage allowed_hosts list."
             );

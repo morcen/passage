@@ -48,6 +48,11 @@ describe('AllowedHostsGuard', function () {
             expect(fn () => $this->guard->check('not-a-url'))
                 ->toThrow(DisallowedProxyTargetException::class);
         });
+
+        it('permits an allowlisted host regardless of casing', function () {
+            expect(fn () => $this->guard->check('https://API.GitHub.com/v3/'))->not->toThrow(DisallowedProxyTargetException::class);
+            expect(fn () => $this->guard->check('https://Api.Stripe.Com/'))->not->toThrow(DisallowedProxyTargetException::class);
+        });
     });
 
     describe('checkHost()', function () {
@@ -77,6 +82,16 @@ describe('AllowedHostsGuard', function () {
 
             expect(fn () => $this->guard->checkHost('evil.example.com'))
                 ->toThrow(DisallowedProxyTargetException::class);
+        });
+
+        it('permits an allowlisted redirect target regardless of casing', function () {
+            config([
+                'passage.security.enforce_allowed_hosts' => true,
+                'passage.security.allowed_hosts' => ['api.github.com'],
+            ]);
+
+            expect(fn () => $this->guard->checkHost('API.GitHub.com'))
+                ->not->toThrow(DisallowedProxyTargetException::class);
         });
     });
 });
