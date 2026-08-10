@@ -28,7 +28,7 @@ class PassageResponseBuilder
         $status = $upstream->status();
         $body = $upstream->body();
         $headers = $this->resolveResponseHeaders($upstream);
-        $contentType = $upstream->header('Content-Type');
+        $contentType = $upstream->header('Content-Type') ?? '';
 
         if (str_contains($contentType, 'application/json') && $body !== '') {
             json_decode($body);
