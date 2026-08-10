@@ -79,14 +79,35 @@ class PassageCacheManager
      * Generate a unique cache key for the request.
      *
      * Forwarded headers (e.g. Authorization) are included so two requests that
-     * produce different outbound headers never share a cached response.
+     * produce different outbound headers never share a cached response. Headers
+     * configured as volatile (e.g. HasHmacAuth's X-Timestamp/X-Signature) are
+     * excluded first, since they change on every request by design and would
+     * otherwise make every cache key unique, defeating caching entirely.
      */
     private function key(string $method, string $fullUrl, array $options, array $query = [], array $headers = []): string
     {
         ksort($query);
+        $headers = $this->excludeVolatileHeaders($headers);
         ksort($headers);
 
         return 'passage:'.md5($method.$fullUrl.serialize($query).serialize($this->sanitizeForKey($options)).serialize($headers));
+    }
+
+    /**
+     * Remove headers configured as volatile (regenerated on every request,
+     * e.g. by HasHmacAuth::withHmacSignature()) from the headers used to
+     * build the cache key. Matching is case-insensitive since header names
+     * are compared regardless of casing.
+     */
+    private function excludeVolatileHeaders(array $headers): array
+    {
+        $volatile = array_map('strtolower', config('passage.cache.volatile_headers', []));
+
+        return array_filter(
+            $headers,
+            fn (string $name) => ! in_array(strtolower($name), $volatile, strict: true),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 
     /**
