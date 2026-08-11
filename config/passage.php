@@ -112,6 +112,15 @@ return [
 
     'cache' => [
         'store' => env('PASSAGE_CACHE_STORE', null),
+
+        /*
+        | Forwarded headers excluded from the cache key. Some headers are
+        | deliberately regenerated on every request (e.g. HasHmacAuth's
+        | X-Timestamp/X-Signature), so including them makes every request
+        | produce a different key and caching never hits. Add any other
+        | per-request volatile header your handlers set here.
+        */
+        'volatile_headers' => ['X-Timestamp', 'X-Signature'],
     ],
 
     /*

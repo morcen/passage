@@ -11,6 +11,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Morcen\Passage\Concerns\HasHmacAuth;
 use Morcen\Passage\Concerns\HasResilienceOptions;
 use Morcen\Passage\Contracts\AcceptsClientHeaders;
 use Morcen\Passage\Events\PassageRequestFailed;
@@ -99,6 +100,21 @@ class CachedHandlerWithCallableOption extends PassageHandler
             'passage_cache_ttl' => 60,
             'on_stats' => function () {},
         ];
+    }
+}
+
+class CachedHandlerWithHmacAuth extends PassageHandler
+{
+    use HasHmacAuth;
+
+    public function getRequest(Request $request): Request
+    {
+        return $this->withHmacSignature($request, 'super-secret');
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://api.example.com/', 'passage_cache_ttl' => 60];
     }
 }
 
@@ -381,6 +397,33 @@ describe('3.2 Response caching', function () {
 
         expect($firstResponse->getStatusCode())->toBe(200);
         expect($secondResponse->getStatusCode())->toBe(200);
+    });
+
+    it('serves a cached response even when a handler injects HMAC signature headers that change per request', function () {
+        // Regression test for #132: HasHmacAuth::withHmacSignature() sets
+        // X-Timestamp/X-Signature headers that differ on every request by
+        // design. Previously these flowed into the cache key unfiltered, so
+        // every request produced a different key and passage_cache_ttl never
+        // hit — silently defeating caching whenever HMAC auth was combined
+        // with it.
+        Cache::flush();
+        config(['passage.cache.store' => 'array']);
+
+        Http::shouldReceive('withOptions')->twice()->andReturn(
+            Mockery::mock(PendingRequest::class)
+        );
+
+        // Same request signed twice: the timestamp/signature differ each
+        // time, but caching should still hit on the second call.
+        $this->mockService->shouldReceive('callService')
+            ->once()
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        $first = phase3Controller()->handle(phase3Route(CachedHandlerWithHmacAuth::class));
+        $second = phase3Controller()->handle(phase3Route(CachedHandlerWithHmacAuth::class));
+
+        expect($first->getStatusCode())->toBe(200);
+        expect($second->getStatusCode())->toBe(200);
     });
 
     it('does not cache non-GET methods', function () {
