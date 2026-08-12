@@ -3,6 +3,7 @@
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use GuzzleHttp\Psr7\Request as Psr7Request;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Client\ConnectionException;
 use Morcen\Passage\Http\PassageErrorHandler;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
@@ -85,4 +86,26 @@ it('returns 500 for unexpected exceptions', function () {
 
     expect($response->getStatusCode())->toBe(ResponseCode::HTTP_INTERNAL_SERVER_ERROR);
     expect($response->getData(true))->toBe(['error' => 'An unexpected error occurred.']);
+});
+
+it('reports every handled exception through Laravel\'s exception handler', function () {
+    $exception = new RuntimeException('Something broke');
+
+    $this->mock(ExceptionHandler::class)
+        ->shouldReceive('report')
+        ->once()
+        ->with($exception);
+
+    (new PassageErrorHandler)->handle($exception);
+});
+
+it('still reports a connection-level exception, not just unexpected ones', function () {
+    $exception = new ConnectionException('Timeout');
+
+    $this->mock(ExceptionHandler::class)
+        ->shouldReceive('report')
+        ->once()
+        ->with($exception);
+
+    (new PassageErrorHandler)->handle($exception);
 });
