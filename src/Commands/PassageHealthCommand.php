@@ -45,8 +45,16 @@ class PassageHealthCommand extends Command
                 continue;
             }
 
-            $handlerInstance = app($handler);
-            $options = array_merge(config('passage.options', []), $handlerInstance->getOptions());
+            try {
+                $handlerInstance = app($handler);
+                $options = array_merge(config('passage.options', []), $handlerInstance->getOptions());
+            } catch (Throwable $e) {
+                $rows[] = [class_basename($handler), '—', '<fg=red>FAIL</>', 'Could not resolve handler: '.$e->getMessage()];
+                $anyFailed = true;
+
+                continue;
+            }
+
             $baseUri = $options['base_uri'] ?? null;
 
             if (! $baseUri) {
