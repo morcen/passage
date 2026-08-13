@@ -127,4 +127,28 @@ describe('PassageHealthCommand', function () {
             ->expectsOutputToContain(ThrowingHealthCommandPassageController::class)
             ->assertExitCode(1);
     });
+
+    it('fails when a route has a missing or invalid handler class', function () {
+        config()->set('passage.enabled', true);
+
+        Passage::get('missing-handler/{path?}', 'App\\Handlers\\DeletedPassageController');
+
+        $this->artisan('passage:health')
+            ->expectsOutputToContain('Invalid or missing handler class')
+            ->assertExitCode(1);
+    });
+
+    it('still checks other routes when a route has a missing handler class', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('missing-handler/{path?}', 'App\\Handlers\\DeletedPassageController');
+        Passage::post('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health')
+            ->expectsOutputToContain('FAIL')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(1);
+    });
 });
