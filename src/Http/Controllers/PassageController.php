@@ -3,7 +3,6 @@
 namespace Morcen\Passage\Http\Controllers;
 
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -186,7 +185,7 @@ class PassageController extends Controller
             $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
 
             return response()->json(['error' => 'Upstream host is not permitted.'], Response::HTTP_FORBIDDEN);
-        } catch (ConnectionException|Throwable $e) {
+        } catch (Throwable $e) {
             $durationMs = (microtime(true) - $startedAt) * 1000;
             $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
 

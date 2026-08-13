@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
@@ -324,6 +325,35 @@ describe('PassageController', function () {
         expect(json_decode($response->getContent(), true))->toBe([
             'error' => 'Upstream host is not permitted.',
         ]);
+    });
+
+    it('reports an unexpected exception from callService instead of silently swallowing it', function () {
+        Event::fake([PassageRequestFailed::class]);
+
+        $request = Request::create('/github/users/123', 'GET');
+        $route = (new Route(['GET'], '/github/{path?}', []))
+            ->defaults('_passage_handler', TestPassageController::class);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+
+        $mockPendingRequest = Mockery::mock(PendingRequest::class);
+        Http::shouldReceive('withOptions')->once()->andReturn($mockPendingRequest);
+
+        $exception = new RuntimeException('Unexpected bug in a custom handler');
+        $this->mockPassageService->shouldReceive('callService')->once()->andThrow($exception);
+
+        $this->mock(ExceptionHandler::class)
+            ->shouldReceive('report')
+            ->once()
+            ->with($exception);
+
+        $response = $this->controller->handle($request);
+
+        expect($response->getStatusCode())->toBe(ResponseCode::HTTP_INTERNAL_SERVER_ERROR);
+
+        Event::assertDispatched(PassageRequestFailed::class, function (PassageRequestFailed $event) use ($exception) {
+            return $event->exception === $exception;
+        });
     });
 
     it('wires an on_redirect guard into allow_redirects that blocks disallowed redirect hosts', function () {

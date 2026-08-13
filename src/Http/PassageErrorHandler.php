@@ -17,9 +17,18 @@ class PassageErrorHandler
      * Upstream 4xx/5xx responses are NOT exceptions and must NOT be passed here —
      * they travel through PassageResponseBuilder as normal responses.
      * Only connection-level failures (timeouts, DNS, TLS, redirect loops) reach this handler.
+     *
+     * Every exception handled here is reported through Laravel's normal exception
+     * pipeline (report()), so it always reaches the configured log channel and any
+     * wired error tracker (Sentry, Bugsnag, ...) — regardless of whether the optional
+     * PassageEventSubscriber is registered. Without this, a genuine bug (as opposed to
+     * an upstream connectivity failure) would be silently converted into a generic
+     * error response with no trace anywhere.
      */
     public function handle(Throwable $e): JsonResponse
     {
+        report($e);
+
         $status = $this->resolveStatus($e);
 
         return response()->json(
