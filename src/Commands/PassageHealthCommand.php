@@ -34,7 +34,7 @@ class PassageHealthCommand extends Command
             return self::SUCCESS;
         }
 
-        $timeout = (int) $this->option('timeout');
+        $timeout = $this->resolveTimeout($this->option('timeout'));
         $rows = [];
         $anyFailed = false;
 
@@ -87,6 +87,24 @@ class PassageHealthCommand extends Command
         $this->table(['Handler', 'Base URI', 'Status', 'Detail'], $rows);
 
         return $anyFailed ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Cast the --timeout option to a positive integer, falling back to the
+     * documented default of 5 seconds for non-numeric or non-positive input.
+     * A bare (int) cast would silently turn "abc" or "0" into 0, which
+     * Http::timeout() treats as "wait indefinitely" — risking a hung CI job
+     * instead of a fast, actionable failure.
+     */
+    private function resolveTimeout(mixed $timeout): int
+    {
+        if (! is_numeric($timeout) || (int) $timeout <= 0) {
+            $this->warn("Invalid --timeout value \"{$timeout}\"; using the default of 5 seconds instead.");
+
+            return 5;
+        }
+
+        return (int) $timeout;
     }
 
     private function probe(string $baseUri, int $timeout): array

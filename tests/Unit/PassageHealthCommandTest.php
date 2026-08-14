@@ -151,4 +151,56 @@ describe('PassageHealthCommand', function () {
             ->expectsOutputToContain('OK')
             ->assertExitCode(1);
     });
+
+    it('falls back to the default timeout and warns when --timeout is zero', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health', ['--timeout' => '0'])
+            ->expectsOutputToContain('Invalid --timeout value')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(0);
+    });
+
+    it('falls back to the default timeout and warns when --timeout is non-numeric', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health', ['--timeout' => 'abc'])
+            ->expectsOutputToContain('Invalid --timeout value')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(0);
+    });
+
+    it('falls back to the default timeout and warns when --timeout is negative', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health', ['--timeout' => '-5'])
+            ->expectsOutputToContain('Invalid --timeout value')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(0);
+    });
+
+    it('accepts a valid positive --timeout without warning', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health', ['--timeout' => '10'])
+            ->doesntExpectOutputToContain('Invalid --timeout value')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(0);
+    });
 });
