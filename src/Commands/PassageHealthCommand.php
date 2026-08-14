@@ -41,7 +41,14 @@ class PassageHealthCommand extends Command
         foreach ($routes as $route) {
             $handler = $route->defaults['_passage_handler'] ?? null;
 
-            if (! $handler || ! class_exists($handler) || ! is_subclass_of($handler, PassageControllerInterface::class)) {
+            if (! $handler) {
+                continue;
+            }
+
+            if (! class_exists($handler) || ! is_subclass_of($handler, PassageControllerInterface::class)) {
+                $rows[] = [class_basename($handler), '—', '<fg=red>FAIL</>', 'Invalid or missing handler class'];
+                $anyFailed = true;
+
                 continue;
             }
 
