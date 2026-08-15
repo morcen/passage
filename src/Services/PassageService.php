@@ -51,7 +51,7 @@ class PassageService implements PassageServiceInterface
             return $this->dispatch($service, $method, $uri, $request->post(), 'multipart');
         }
 
-        if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
+        if (str_contains(strtolower($contentType), 'application/x-www-form-urlencoded')) {
             // Forward the raw body verbatim instead of re-encoding $request->post()
             // via asForm(): the parsed array has already been url-decoded and, for
             // duplicate keys, collapsed to the last value, so re-encoding it can
