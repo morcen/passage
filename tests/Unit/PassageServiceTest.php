@@ -76,6 +76,22 @@ describe('PassageService::callService()', function () {
             expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
         });
 
+        it('matches a non-lowercase form-urlencoded Content-Type case-insensitively', function () {
+            $body = 'name=Alice&role=admin';
+            $request = Request::create('/test', 'POST', [], [], [], [
+                'CONTENT_TYPE' => 'APPLICATION/X-WWW-FORM-URLENCODED',
+            ], $body);
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = mockPending();
+            $pending->shouldReceive('withBody')
+                ->once()
+                ->with($body, 'APPLICATION/X-WWW-FORM-URLENCODED')
+                ->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('users')->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'users'))->toBe($mockResponse);
+        });
+
         it('sends JSON body with withBody() when Content-Type is application/json', function () {
             $body = json_encode(['name' => 'Alice']);
             $request = Request::create('/test', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);
