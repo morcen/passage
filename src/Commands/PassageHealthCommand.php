@@ -65,7 +65,8 @@ class PassageHealthCommand extends Command
             $baseUri = $options['base_uri'] ?? null;
 
             if (! $baseUri) {
-                $rows[] = [$handler, $baseUri ?? '—', '<fg=yellow>SKIPPED</>', 'No base_uri configured'];
+                $rows[] = [class_basename($handler), '—', '<fg=red>FAIL</>', 'No base_uri configured'];
+                $anyFailed = true;
 
                 continue;
             }

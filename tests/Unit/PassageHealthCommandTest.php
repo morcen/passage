@@ -100,8 +100,22 @@ describe('PassageHealthCommand', function () {
         Passage::get('no-base-uri/{path?}', NoBaseUriHealthCommandPassageController::class);
 
         $this->artisan('passage:health')
-            ->expectsOutputToContain('SKIPPED')
-            ->assertExitCode(0);
+            ->expectsOutputToContain('No base_uri configured')
+            ->assertExitCode(1);
+    });
+
+    it('still checks other routes when a route has no base_uri configured', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(['https://api.example.com' => Http::response('', 200)]);
+
+        Passage::get('no-base-uri/{path?}', NoBaseUriHealthCommandPassageController::class);
+        Passage::post('healthy/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health')
+            ->expectsOutputToContain('No base_uri configured')
+            ->expectsOutputToContain('OK')
+            ->assertExitCode(1);
     });
 
     it('continues checking other routes when a handler cannot be resolved', function () {
