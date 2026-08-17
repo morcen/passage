@@ -40,9 +40,12 @@ class PassageService implements PassageServiceInterface
         // dropped into the raw-passthrough branch below with no body.
         if (count($request->allFiles()) > 0 || str_contains(strtolower($contentType), 'multipart/form-data')) {
             foreach (NestedFileResolver::flatten($request->allFiles()) as $key => $singleFile) {
+                // Stream from disk instead of $singleFile->get(), which reads
+                // the entire file into memory at once — a large upload would
+                // otherwise risk exhausting a PHP-FPM worker's memory limit.
                 $service = $service->attach(
                     $key,
-                    $singleFile->get(),
+                    fopen($singleFile->getRealPath(), 'r'),
                     $singleFile->getClientOriginalName(),
                     ['Content-Type' => $singleFile->getMimeType()]
                 );
