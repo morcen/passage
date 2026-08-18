@@ -123,7 +123,10 @@ trait HasHmacAuth
                 'name' => $singleFile->getClientOriginalName(),
                 'size' => $singleFile->getSize(),
                 'mime' => $singleFile->getMimeType(),
-                'hash' => hash('sha256', $singleFile->get()),
+                // Hash from disk rather than $singleFile->get(), which reads
+                // the entire file into memory at once — a large upload would
+                // otherwise risk exhausting a PHP-FPM worker's memory limit.
+                'hash' => hash_file('sha256', $singleFile->getRealPath()),
             ];
         }
 

@@ -280,7 +280,7 @@ describe('PassageService::callService()', function () {
     });
 
     describe('file uploads', function () {
-        it('forwards a single uploaded file', function () {
+        it('forwards a single uploaded file as a stream instead of buffering it into memory', function () {
             $file = UploadedFile::fake()->create('avatar.png', 10, 'image/png');
             $request = Request::create('/test', 'POST');
             $request->files->set('avatar', $file);
@@ -289,7 +289,11 @@ describe('PassageService::callService()', function () {
             $pending = mockPending();
             $pending->shouldReceive('attach')
                 ->once()
-                ->with('avatar', $file->get(), 'avatar.png', ['Content-Type' => 'image/png'])
+                ->withArgs(fn ($name, $contents, $filename, $headers) => $name === 'avatar'
+                    && is_resource($contents)
+                    && stream_get_contents($contents) === $file->get()
+                    && $filename === 'avatar.png'
+                    && $headers === ['Content-Type' => 'image/png'])
                 ->andReturn($pending);
             $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
 
@@ -306,11 +310,19 @@ describe('PassageService::callService()', function () {
             $pending = mockPending();
             $pending->shouldReceive('attach')
                 ->once()
-                ->with('attachments[0]', $file1->get(), 'one.txt', ['Content-Type' => 'text/plain'])
+                ->withArgs(fn ($name, $contents, $filename, $headers) => $name === 'attachments[0]'
+                    && is_resource($contents)
+                    && stream_get_contents($contents) === $file1->get()
+                    && $filename === 'one.txt'
+                    && $headers === ['Content-Type' => 'text/plain'])
                 ->andReturn($pending);
             $pending->shouldReceive('attach')
                 ->once()
-                ->with('attachments[1]', $file2->get(), 'two.txt', ['Content-Type' => 'text/plain'])
+                ->withArgs(fn ($name, $contents, $filename, $headers) => $name === 'attachments[1]'
+                    && is_resource($contents)
+                    && stream_get_contents($contents) === $file2->get()
+                    && $filename === 'two.txt'
+                    && $headers === ['Content-Type' => 'text/plain'])
                 ->andReturn($pending);
             $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
 
@@ -326,7 +338,11 @@ describe('PassageService::callService()', function () {
             $pending = mockPending();
             $pending->shouldReceive('attach')
                 ->once()
-                ->with('docs[0][avatar]', $file->get(), 'avatar.png', ['Content-Type' => 'image/png'])
+                ->withArgs(fn ($name, $contents, $filename, $headers) => $name === 'docs[0][avatar]'
+                    && is_resource($contents)
+                    && stream_get_contents($contents) === $file->get()
+                    && $filename === 'avatar.png'
+                    && $headers === ['Content-Type' => 'image/png'])
                 ->andReturn($pending);
             $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
 
