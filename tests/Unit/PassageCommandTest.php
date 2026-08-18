@@ -90,4 +90,18 @@ describe('PassageCommand', function () {
             ->expectsOutputToContain('already exists')
             ->assertExitCode(1);
     });
+
+    it('rejects a handler name containing path traversal segments', function () {
+        $this->artisan('passage:controller ../../../../tmp/evil')
+            ->expectsOutputToContain('Invalid handler name')
+            ->assertExitCode(1);
+
+        expect(File::exists(app_path('Http/Controllers/Passages/evil.php')))->toBeFalse();
+    });
+
+    it('rejects a handler name containing unexpected characters', function () {
+        $this->artisan('passage:controller "Evil; rm -rf /"')
+            ->expectsOutputToContain('Invalid handler name')
+            ->assertExitCode(1);
+    });
 });
