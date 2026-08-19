@@ -24,6 +24,12 @@ class PassageCommand extends Command
         $withCache = $this->option('with-cache');
         $withRetry = $this->option('with-retry');
 
+        if (! preg_match('/^[A-Za-z0-9_\/]+$/', $name)) {
+            $this->error("Invalid handler name [{$name}]: only letters, numbers, underscores, and slashes are allowed.");
+
+            return self::FAILURE;
+        }
+
         if (file_exists(app_path('Http/Controllers/Passages/'.$name.'.php'))) {
             $this->error("Passage handler {$name} already exists at app/Http/Controllers/Passages/{$name}.php");
 
