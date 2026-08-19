@@ -16,9 +16,11 @@ use Illuminate\Http\Request;
 class ForwardedHeaderResolver
 {
     // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
-    private const HOP_BY_HOP_FALLBACK = [
+    // Public so PassageResponseBuilder can share it instead of maintaining its own copy.
+    public const HOP_BY_HOP_FALLBACK = [
         'host', 'connection', 'transfer-encoding', 'upgrade',
         'keep-alive', 'te', 'trailer', 'proxy-authenticate',
+        'proxy-authorization',
     ];
 
     public static function resolve(Request $request): array
