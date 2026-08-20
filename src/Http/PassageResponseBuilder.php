@@ -4,18 +4,12 @@ namespace Morcen\Passage\Http;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
+use Morcen\Passage\Support\ForwardedHeaderResolver;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PassageResponseBuilder
 {
-    // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
-    private const HOP_BY_HOP_FALLBACK = [
-        'host', 'connection', 'transfer-encoding', 'upgrade',
-        'keep-alive', 'te', 'trailer', 'proxy-authenticate',
-        'proxy-authorization',
-    ];
-
     // Guzzle's default `decode_content` option transparently decompresses gzip/deflate/br
     // bodies (Passage never disables it), but leaves Content-Encoding/Content-Length on the
     // response describing the discarded compressed representation. Relaying them verbatim
@@ -78,7 +72,7 @@ class PassageResponseBuilder
 
     private function resolveResponseHeaders(Response $upstream): array
     {
-        $hopByHop = config('passage.security.hop_by_hop_headers', self::HOP_BY_HOP_FALLBACK);
+        $hopByHop = config('passage.security.hop_by_hop_headers', ForwardedHeaderResolver::HOP_BY_HOP_FALLBACK);
         $headers = [];
 
         foreach ($upstream->headers() as $name => $values) {
