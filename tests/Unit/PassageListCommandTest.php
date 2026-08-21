@@ -23,6 +23,34 @@ class ListCommandTestPassageController implements PassageControllerInterface
     }
 }
 
+class ListCommandDependency
+{
+    public function baseUri(): string
+    {
+        return 'https://api.example.com';
+    }
+}
+
+class DependentListCommandPassageController implements PassageControllerInterface
+{
+    public function __construct(private ListCommandDependency $dependency) {}
+
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => $this->dependency->baseUri()];
+    }
+}
+
 class ThrowingListCommandPassageController implements PassageControllerInterface
 {
     public function getRequest(Request $request): Request
@@ -79,6 +107,19 @@ describe('PassageListCommand', function () {
 
         $this->artisan('passage:list')
             ->expectsOutputToContain('github/{path?}')
+            ->assertExitCode(0);
+    });
+
+    it('resolves handlers with constructor dependencies through the container', function () {
+        config()->set('passage.enabled', true);
+
+        Passage::get('dependent/{path?}', DependentListCommandPassageController::class);
+
+        $this->artisan('passage:list')
+            ->expectsTable(
+                ['Method', 'URI', 'Target'],
+                [['GET|HEAD', 'dependent/{path?}', 'https://api.example.com ('.DependentListCommandPassageController::class.')']]
+            )
             ->assertExitCode(0);
     });
 

@@ -58,7 +58,7 @@ class PassageListCommand extends Command
         }
 
         try {
-            $instance = new $handler;
+            $instance = app($handler);
             $options = $instance->getOptions();
         } catch (Throwable) {
             return $handler.' (could not resolve target)';
