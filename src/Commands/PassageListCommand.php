@@ -28,7 +28,7 @@ class PassageListCommand extends Command
 
         foreach (Route::getRoutes() as $route) {
             $uses = $route->getAction('uses');
-            if (! is_string($uses) || ! str_contains($uses, class_basename(PassageController::class).'@handle')) {
+            if (! is_string($uses) || ! str_contains($uses, PassageController::class.'@handle')) {
                 continue;
             }
 

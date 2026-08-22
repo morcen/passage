@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Morcen\Passage\Facades\Passage;
 use Morcen\Passage\PassageControllerInterface;
 
@@ -69,6 +70,19 @@ class ThrowingListCommandPassageController implements PassageControllerInterface
     }
 }
 
+// An app-namespaced controller that happens to share the short class name
+// "PassageController" with Morcen\Passage\Http\Controllers\PassageController,
+// including its own unrelated "handle" method. Used to prove passage:list
+// only matches the package's fully-qualified controller, not a same-named
+// class defined by the host application.
+class PassageController
+{
+    public function handle(): string
+    {
+        return 'not a Passage route';
+    }
+}
+
 describe('PassageListCommand', function () {
     it('warns when passage is disabled', function () {
         config()->set('passage.enabled', false);
@@ -119,6 +133,20 @@ describe('PassageListCommand', function () {
             ->expectsTable(
                 ['Method', 'URI', 'Target'],
                 [['GET|HEAD', 'dependent/{path?}', 'https://api.example.com ('.DependentListCommandPassageController::class.')']]
+            )
+            ->assertExitCode(0);
+    });
+
+    it('does not list an app route whose controller merely shares the short class name "PassageController"', function () {
+        config()->set('passage.enabled', true);
+
+        Passage::get('github/{path?}', ListCommandTestPassageController::class);
+        Route::get('unrelated/{path?}', [PassageController::class, 'handle']);
+
+        $this->artisan('passage:list')
+            ->expectsTable(
+                ['Method', 'URI', 'Target'],
+                [['GET|HEAD', 'github/{path?}', 'https://api.github.com ('.ListCommandTestPassageController::class.')']]
             )
             ->assertExitCode(0);
     });
