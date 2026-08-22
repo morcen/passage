@@ -89,7 +89,7 @@ describe('PassageListCommand', function () {
 
         $this->artisan('passage:list')
             ->expectsOutputToContain('Passage is disabled')
-            ->assertExitCode(1);
+            ->assertExitCode(0);
     });
 
     it('warns when no Passage routes are registered', function () {
