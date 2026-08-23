@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Console\Command;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernelContract;
 use Illuminate\Support\Facades\File;
 
 describe('PassageCommand', function () {
@@ -103,5 +105,65 @@ describe('PassageCommand', function () {
         $this->artisan('passage:controller "Evil; rm -rf /"')
             ->expectsOutputToContain('Invalid handler name')
             ->assertExitCode(1);
+    });
+
+    it('fails and relays output when the underlying make:controller call fails', function () {
+        $realKernel = app(ConsoleKernelContract::class);
+
+        // Orchestra\Testbench\Console\Kernel is final, so it can't be mocked directly.
+        // Decorate it instead: intercept the nested make:controller call and delegate
+        // everything else (including the outer passage:controller invocation) as-is.
+        $fakeKernel = new class($realKernel) implements ConsoleKernelContract
+        {
+            public function __construct(private ConsoleKernelContract $kernel) {}
+
+            public function call($command, array $parameters = [], $outputBuffer = null)
+            {
+                if (str_starts_with($command, 'make:controller Passages/FailingHandler')) {
+                    return Command::FAILURE;
+                }
+
+                return $this->kernel->call($command, $parameters, $outputBuffer);
+            }
+
+            public function output()
+            {
+                return 'Controller already exists.';
+            }
+
+            public function bootstrap()
+            {
+                return $this->kernel->bootstrap();
+            }
+
+            public function handle($input, $output = null)
+            {
+                return $this->kernel->handle($input, $output);
+            }
+
+            public function queue($command, array $parameters = [])
+            {
+                return $this->kernel->queue($command, $parameters);
+            }
+
+            public function all()
+            {
+                return $this->kernel->all();
+            }
+
+            public function terminate($input, $status)
+            {
+                return $this->kernel->terminate($input, $status);
+            }
+        };
+
+        app()->instance(ConsoleKernelContract::class, $fakeKernel);
+
+        $this->artisan('passage:controller FailingHandler')
+            ->expectsOutputToContain('Failed to create passage handler FailingHandler.')
+            ->expectsOutputToContain('Controller already exists.')
+            ->assertExitCode(1);
+
+        expect(File::exists(app_path('Http/Controllers/Passages/FailingHandler.php')))->toBeFalse();
     });
 });
