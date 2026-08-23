@@ -21,7 +21,7 @@ class PassageListCommand extends Command
         if (! (config('passage.enabled') ?? true)) {
             $this->warn('Passage is disabled. Set PASSAGE_ENABLED=true to enable it.');
 
-            return self::FAILURE;
+            return self::SUCCESS;
         }
 
         $rows = [];
