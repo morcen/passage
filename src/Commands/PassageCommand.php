@@ -37,7 +37,18 @@ class PassageCommand extends Command
         }
 
         $stubType = $this->resolveStubType($authStyle, $withCache, $withRetry);
-        Artisan::call("make:controller Passages/{$name} --type=passage{$stubType}");
+        $exitCode = Artisan::call("make:controller Passages/{$name} --type=passage{$stubType}");
+
+        if ($exitCode !== self::SUCCESS) {
+            $this->error("Failed to create passage handler {$name}.");
+
+            $output = trim(Artisan::output());
+            if ($output !== '') {
+                $this->line($output);
+            }
+
+            return self::FAILURE;
+        }
 
         $this->info("Passage handler created at app/Http/Controllers/Passages/{$name}.php");
         $this->newLine();
