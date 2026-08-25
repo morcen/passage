@@ -68,6 +68,6 @@ class PassageEventSubscriber
 
     private function channel(): string
     {
-        return 'passage';
+        return config('logging.channels.passage') ? 'passage' : config('logging.default', 'stack');
     }
 }

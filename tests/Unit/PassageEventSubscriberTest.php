@@ -10,6 +10,13 @@ use Morcen\Passage\Events\PassageResponseReceived;
 use Morcen\Passage\Listeners\PassageEventSubscriber;
 
 describe('PassageEventSubscriber', function () {
+    beforeEach(function () {
+        config()->set('logging.channels.passage', [
+            'driver' => 'single',
+            'path' => storage_path('logs/passage.log'),
+        ]);
+    });
+
     it('logs a debug message when a request is sending', function () {
         $request = Request::create('/proxy/users', 'POST');
         $event = new PassageRequestSending(
@@ -83,5 +90,26 @@ describe('PassageEventSubscriber', function () {
             ]);
 
         (new PassageEventSubscriber)->onRequestFailed($event);
+    });
+
+    it('falls back to the default log channel when no passage channel is configured', function () {
+        config()->set('logging.channels.passage', null);
+        config()->set('logging.default', 'stack');
+
+        $request = Request::create('/proxy/users', 'POST');
+        $event = new PassageRequestSending(
+            $request,
+            'App\\Http\\Controllers\\Passages\\UsersHandler',
+            'https://api.example.com/users',
+            microtime(true),
+        );
+
+        Log::shouldReceive('channel')
+            ->once()
+            ->with('stack')
+            ->andReturnSelf();
+        Log::shouldReceive('debug')->once();
+
+        (new PassageEventSubscriber)->onRequestSending($event);
     });
 });
