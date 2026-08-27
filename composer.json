@@ -59,6 +59,19 @@
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true
+        },
+        "policy": {
+            "advisories": {
+                "ignore-id": {
+                    "PKSA-m5cs-t1y6-qpcs": "laravel/framework is a require-dev-only test dependency (via orchestra/testbench) used to run this package's test suite against Laravel 11.x/12.x; it is never installed by consumers of this package. No fix is published for the 11.x line, so the CI matrix's Laravel 11.* leg cannot resolve otherwise.",
+                    "PKSA-3r5d-mb8f-1qw9": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-mdq4-51ck-6kdq": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-8qx3-n5y5-vvnd": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-q46n-4fdk-zjr4": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-qzrn-rnz3-85w1": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-w7xr-vk7n-rstm": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers."
+                }
+            }
         }
     },
     "extra": {
@@ -71,6 +84,6 @@
             }
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
