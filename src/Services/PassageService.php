@@ -13,7 +13,16 @@ class PassageService implements PassageServiceInterface
     public function callService(Request $request, PendingRequest $service, string $uri): Response
     {
         $method = strtolower($request->method());
-        $service = $service->withHeaders(ForwardedHeaderResolver::resolve($request));
+        $headers = ForwardedHeaderResolver::resolve($request);
+
+        if (config('passage.security.add_forwarded_headers', true)) {
+            // Merged after resolve() so an authoritative, correctly-chained
+            // value wins over anything the client itself sent under the
+            // same header name.
+            $headers = array_merge($headers, ForwardedHeaderResolver::forwardedHeaders($request));
+        }
+
+        $service = $service->withHeaders($headers);
 
         if (in_array($method, ['get', 'head'])) {
             return $service->{$method}($uri, $request->query());

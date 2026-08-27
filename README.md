@@ -214,6 +214,22 @@ To change which headers are stripped globally, edit `config/passage.php`:
 ],
 ```
 
+### Forwarded headers
+
+Passage strips the client's `Host` header (it's hop-by-hop) and calls upstream from the gateway's own IP, so by default an upstream service has no way to see the original client's address, host, or scheme — which breaks per-client rate limiting, geo logic, and audit logging behind the proxy.
+
+To fix this, Passage adds standard `X-Forwarded-*` headers to every outbound request:
+
+- `X-Forwarded-For`: the client's IP, appended to any existing chain
+- `X-Forwarded-Host`: the original `Host` the client requested
+- `X-Forwarded-Proto`: the original request scheme (`http`/`https`)
+
+This is enabled by default. Disable it for deployments that should not reveal client IPs to upstream services:
+
+```env
+PASSAGE_ADD_FORWARDED_HEADERS=false
+```
+
 ### Forwarding a client header on a specific route
 
 If a route legitimately needs to forward a specific client header (for example, forwarding a client's `Authorization` to an upstream that validates it), implement `AcceptsClientHeaders` on the handler:

@@ -258,13 +258,48 @@ describe('PassageService::callService()', function () {
             $this->service->callService($request, $pending, 'test');
         });
 
+        it('adds X-Forwarded-* headers so upstream sees the original client', function () {
+            $request = Request::create('http://gateway.example.com/test', 'GET', server: ['REMOTE_ADDR' => '203.0.113.5']);
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $h) => ($h['X-Forwarded-For'] ?? null) === '203.0.113.5'
+                    && ($h['X-Forwarded-Host'] ?? null) === 'gateway.example.com'
+                    && ($h['X-Forwarded-Proto'] ?? null) === 'http')
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
+        });
+
+        it('does not add X-Forwarded-* headers when add_forwarded_headers is disabled', function () {
+            config(['passage.security.add_forwarded_headers' => false]);
+
+            $request = Request::create('http://gateway.example.com/test', 'GET', server: ['REMOTE_ADDR' => '203.0.113.5']);
+
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $h) => ! array_key_exists('X-Forwarded-For', $h)
+                    && ! array_key_exists('X-Forwarded-Host', $h)
+                    && ! array_key_exists('X-Forwarded-Proto', $h))
+                ->andReturn($pending);
+            $pending->shouldReceive('get')->andReturn(Mockery::mock(Response::class));
+
+            $this->service->callService($request, $pending, 'test');
+        });
+
         it('normalizes all-uppercase header names before forwarding', function () {
             $request = Request::create('/test', 'GET');
             $request->headers = new class extends HeaderBag
             {
                 public function all(?string $key = null): array
                 {
-                    return ['AUTHORIZATION' => ['Bearer service-token']];
+                    // Only override the parameterless call ForwardedHeaderResolver::resolve()
+                    // makes to iterate every header; a specific $key (e.g. from
+                    // Request::header()) still needs real HeaderBag lookup behavior.
+                    return $key === null ? ['AUTHORIZATION' => ['Bearer service-token']] : parent::all($key);
                 }
             };
 
