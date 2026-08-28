@@ -86,6 +86,15 @@ return [
         'strip_client_headers' => ['cookie', 'authorization', 'proxy-authorization'],
 
         /*
+        | When true, Passage adds X-Forwarded-For, X-Forwarded-Host, and
+        | X-Forwarded-Proto headers to the outbound request so upstream
+        | services see the original client's IP, host, and scheme instead
+        | of the gateway's. Disable for deployments that should not reveal
+        | client IPs to upstream services.
+        */
+        'add_forwarded_headers' => env('PASSAGE_ADD_FORWARDED_HEADERS', true),
+
+        /*
         | Hop-by-hop headers are always stripped and cannot be configured.
         | These are transport-level headers that must not be forwarded by
         | any proxy (RFC 7230).

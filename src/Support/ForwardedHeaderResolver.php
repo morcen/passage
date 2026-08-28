@@ -40,4 +40,25 @@ class ForwardedHeaderResolver
 
         return $headers;
     }
+
+    /**
+     * Standard proxy headers that tell the upstream service about the
+     * original client, since Passage's own Host header is stripped as
+     * hop-by-hop and the upstream otherwise only ever sees the gateway's
+     * IP, host, and scheme. This breaks per-client rate limiting, geo
+     * logic, and audit logging on services behind Passage.
+     *
+     * Appends to an existing X-Forwarded-For chain (e.g. one set by an
+     * upstream load balancer) rather than replacing it, per convention.
+     */
+    public static function forwardedHeaders(Request $request): array
+    {
+        $chain = array_filter([$request->header('X-Forwarded-For'), $request->ip()]);
+
+        return [
+            'X-Forwarded-For' => implode(', ', $chain),
+            'X-Forwarded-Host' => $request->getHost(),
+            'X-Forwarded-Proto' => $request->getScheme(),
+        ];
+    }
 }
