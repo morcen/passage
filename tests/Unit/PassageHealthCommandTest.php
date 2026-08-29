@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -62,6 +63,24 @@ class ThrowingHealthCommandPassageController implements PassageControllerInterfa
     public function getOptions(): array
     {
         return ['base_uri' => 'https://api.example.com'];
+    }
+}
+
+class UnreachableHealthCommandPassageController implements PassageControllerInterface
+{
+    public function getRequest(Request $request): Request
+    {
+        return $request;
+    }
+
+    public function getResponse(Request $request, Response $response): Response
+    {
+        return $response;
+    }
+
+    public function getOptions(): array
+    {
+        return ['base_uri' => 'https://unreachable.example.com'];
     }
 }
 
@@ -216,5 +235,38 @@ describe('PassageHealthCommand', function () {
             ->doesntExpectOutputToContain('Invalid --timeout value')
             ->expectsOutputToContain('OK')
             ->assertExitCode(0);
+    });
+
+    it('fails when the HTTP probe itself throws for an unreachable host', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake(function () {
+            throw new ConnectionException('Connection refused');
+        });
+
+        Passage::get('unreachable/{path?}', HealthCommandTestPassageController::class);
+
+        $this->artisan('passage:health')
+            ->expectsOutputToContain('refused')
+            ->assertExitCode(1);
+    });
+
+    it('still reports OK for other routes when one route\'s probe throws', function () {
+        config()->set('passage.enabled', true);
+
+        Http::fake([
+            'https://api.example.com' => Http::response('', 200),
+            'https://unreachable.example.com' => function () {
+                throw new ConnectionException('Connection refused');
+            },
+        ]);
+
+        Passage::get('healthy/{path?}', HealthCommandTestPassageController::class);
+        Passage::post('unreachable/{path?}', UnreachableHealthCommandPassageController::class);
+
+        $this->artisan('passage:health')
+            ->expectsOutputToContain('OK')
+            ->expectsOutputToContain('refused')
+            ->assertExitCode(1);
     });
 });
