@@ -3,23 +3,18 @@
 use Illuminate\Http\Request;
 use Morcen\Passage\Support\ForwardedHeaderResolver;
 
-describe('ForwardedHeaderResolver::HOP_BY_HOP_FALLBACK', function () {
-    it('matches the published config default for hop_by_hop_headers', function () {
-        expect(ForwardedHeaderResolver::HOP_BY_HOP_FALLBACK)
-            ->toBe(config('passage.security.hop_by_hop_headers'));
+describe('ForwardedHeaderResolver::HOP_BY_HOP_HEADERS', function () {
+    it('includes proxy-authorization, since it is also a hop-by-hop header', function () {
+        expect(ForwardedHeaderResolver::HOP_BY_HOP_HEADERS)->toContain('proxy-authorization');
     });
 
-    it('includes proxy-authorization, since it is also a hop-by-hop header', function () {
-        expect(ForwardedHeaderResolver::HOP_BY_HOP_FALLBACK)->toContain('proxy-authorization');
+    it('is not sourced from config, since hop-by-hop stripping is not configurable', function () {
+        expect(config('passage.security.hop_by_hop_headers'))->toBeNull();
     });
 });
 
 describe('ForwardedHeaderResolver::resolve()', function () {
-    it('strips Proxy-Authorization from the forwarded request when config is unavailable', function () {
-        $security = config('passage.security');
-        unset($security['hop_by_hop_headers']);
-        config(['passage.security' => $security]);
-
+    it('strips Proxy-Authorization from the forwarded request', function () {
         $request = Request::create('/test', 'GET');
         $request->headers->set('Proxy-Authorization', 'Basic secret-credentials');
         $request->headers->set('X-Custom', 'keep-me');
@@ -28,6 +23,17 @@ describe('ForwardedHeaderResolver::resolve()', function () {
 
         expect($headers)->not->toHaveKey('Proxy-Authorization');
         expect($headers)->toHaveKey('X-Custom');
+    });
+
+    it('strips every hop-by-hop header even if config attempts to override the list', function () {
+        config(['passage.security.hop_by_hop_headers' => []]);
+
+        $request = Request::create('/test', 'GET');
+        $request->headers->set('Connection', 'keep-alive');
+
+        $headers = ForwardedHeaderResolver::resolve($request);
+
+        expect($headers)->not->toHaveKey('Connection');
     });
 });
 

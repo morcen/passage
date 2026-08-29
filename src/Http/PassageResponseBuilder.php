@@ -72,7 +72,7 @@ class PassageResponseBuilder
 
     private function resolveResponseHeaders(Response $upstream): array
     {
-        $hopByHop = config('passage.security.hop_by_hop_headers', ForwardedHeaderResolver::HOP_BY_HOP_FALLBACK);
+        $hopByHop = ForwardedHeaderResolver::HOP_BY_HOP_HEADERS;
         $headers = [];
 
         foreach ($upstream->headers() as $name => $values) {
