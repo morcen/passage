@@ -95,15 +95,13 @@ return [
         'add_forwarded_headers' => env('PASSAGE_ADD_FORWARDED_HEADERS', true),
 
         /*
-        | Hop-by-hop headers are always stripped and cannot be configured.
-        | These are transport-level headers that must not be forwarded by
-        | any proxy (RFC 7230).
+        | Hop-by-hop headers (host, connection, transfer-encoding, upgrade,
+        | keep-alive, te, trailer, proxy-authenticate, proxy-authorization)
+        | are always stripped and are not configurable here. These are
+        | transport-level headers that must not be forwarded by any proxy
+        | (RFC 7230) — see Morcen\Passage\Support\ForwardedHeaderResolver::
+        | HOP_BY_HOP_HEADERS.
         */
-        'hop_by_hop_headers' => [
-            'host', 'connection', 'transfer-encoding', 'upgrade',
-            'keep-alive', 'te', 'trailer', 'proxy-authenticate',
-            'proxy-authorization',
-        ],
     ],
 
     /*

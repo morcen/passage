@@ -171,7 +171,7 @@ describe('PassageResponseBuilder::build()', function () {
             expect($response->headers->get('x-custom'))->toBe('pass-through');
         });
 
-        it('strips a Proxy-Authorization header on the upstream response using the published config default', function () {
+        it('strips a Proxy-Authorization header on the upstream response using the hard-coded hop-by-hop list', function () {
             $upstream = Mockery::mock(Response::class);
             $upstream->shouldReceive('status')->andReturn(200);
             $upstream->shouldReceive('body')->andReturn('{}');

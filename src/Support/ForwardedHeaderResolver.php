@@ -15,9 +15,9 @@ use Illuminate\Http\Request;
  */
 class ForwardedHeaderResolver
 {
-    // Fallback hop-by-hop list used when config is not available (e.g. early bootstrap).
+    // Hop-by-hop headers are always stripped and are not configurable (RFC 7230).
     // Public so PassageResponseBuilder can share it instead of maintaining its own copy.
-    public const HOP_BY_HOP_FALLBACK = [
+    public const HOP_BY_HOP_HEADERS = [
         'host', 'connection', 'transfer-encoding', 'upgrade',
         'keep-alive', 'te', 'trailer', 'proxy-authenticate',
         'proxy-authorization',
@@ -25,7 +25,7 @@ class ForwardedHeaderResolver
 
     public static function resolve(Request $request): array
     {
-        $hopByHop = config('passage.security.hop_by_hop_headers', self::HOP_BY_HOP_FALLBACK);
+        $hopByHop = self::HOP_BY_HOP_HEADERS;
         $headers = [];
 
         foreach ($request->headers->all() as $name => $values) {
