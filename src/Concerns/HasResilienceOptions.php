@@ -2,6 +2,7 @@
 
 namespace Morcen\Passage\Concerns;
 
+use Closure;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Throwable;
@@ -12,10 +13,19 @@ trait HasResilienceOptions
      * Return retry configuration to merge into getOptions().
      *
      * Passage will extract these keys before passing options to Guzzle and
-     * apply ->retry() on the PendingRequest automatically.
+     * apply ->retry() on the PendingRequest automatically. Both parameters
+     * are passed straight through to Laravel's PendingRequest::retry(), so
+     * they accept the same shapes it does: an array of $times lets you
+     * define a fixed number of attempts per backoff step, and a Closure for
+     * $sleepMs lets you compute the delay per attempt (e.g. exponential
+     * backoff with jitter).
      *
-     * @param  int  $times  Maximum number of retry attempts.
-     * @param  int  $sleepMs  Milliseconds to wait between retries.
+     * @param  int|array<int, int>  $times  Maximum number of retry attempts, or an array of
+     *                                      per-attempt delays in milliseconds (its length
+     *                                      determines the number of attempts).
+     * @param  int|Closure  $sleepMs  Milliseconds to wait between retries, or a
+     *                                Closure(int $attempt, Throwable $exception): int
+     *                                that computes the delay per attempt.
      * @param  callable|null  $when  Optional callable(Throwable $exception, PendingRequest $request): bool.
      *                               When null, retries on connection errors and 5xx responses only —
      *                               NOT on 4xx client errors, since Laravel's own retry default would
@@ -31,8 +41,17 @@ trait HasResilienceOptions
      *           $this->withRetry(3, 200)
      *       );
      *   }
+     *
+     * Example with exponential backoff and jitter:
+     *   public function getOptions(): array
+     *   {
+     *       return array_merge(
+     *           ['base_uri' => 'https://api.example.com/'],
+     *           $this->withRetry(3, fn (int $attempt) => (2 ** $attempt) * 100 + random_int(0, 100))
+     *       );
+     *   }
      */
-    protected function withRetry(int $times, int $sleepMs = 100, ?callable $when = null): array
+    protected function withRetry(int|array $times, int|Closure $sleepMs = 100, ?callable $when = null): array
     {
         return array_filter([
             'passage_retry_times' => $times,
