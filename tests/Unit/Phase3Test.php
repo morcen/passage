@@ -42,6 +42,17 @@ class RetryableHandler extends PassageHandler
     }
 }
 
+class BackoffRetryableHandler extends PassageHandler
+{
+    public function getOptions(): array
+    {
+        return array_merge(
+            ['base_uri' => 'https://api.example.com/'],
+            $this->withRetry([100, 200, 400], fn (int $attempt) => $attempt * 100)
+        );
+    }
+}
+
 class CachedHandler extends PassageHandler
 {
     public function getOptions(): array
@@ -187,6 +198,64 @@ describe('3.1 Retry ergonomics', function () {
             'passage_retry_times' => 3,
             'passage_retry_sleep_ms' => 200,
         ]);
+    });
+
+    it('withRetry() accepts an array of per-attempt delays for $times', function () {
+        $handler = new class
+        {
+            use HasResilienceOptions;
+
+            public function options(): array
+            {
+                return $this->withRetry([100, 200, 400], 200);
+            }
+        };
+
+        expect($handler->options())->toMatchArray([
+            'passage_retry_times' => [100, 200, 400],
+            'passage_retry_sleep_ms' => 200,
+        ]);
+    });
+
+    it('withRetry() accepts a Closure for $sleepMs to compute exponential backoff with jitter', function () {
+        $backoff = fn (int $attempt) => (2 ** $attempt) * 100;
+
+        $handler = new class
+        {
+            use HasResilienceOptions;
+
+            public function options(Closure $sleepMs): array
+            {
+                return $this->withRetry(3, $sleepMs);
+            }
+        };
+
+        $opts = $handler->options($backoff);
+
+        expect($opts['passage_retry_sleep_ms'])->toBe($backoff);
+        expect($opts['passage_retry_times'])->toBe(3);
+    });
+
+    it('passes an array $times and Closure $sleepMs straight through to PendingRequest::retry()', function () {
+        $request = phase3Route(BackoffRetryableHandler::class);
+
+        Http::shouldReceive('withOptions')->once()->andReturn(
+            Mockery::mock(PendingRequest::class)
+                ->shouldReceive('retry')
+                ->withArgs(function ($actualTimes, $actualSleepMs) {
+                    return $actualTimes === [100, 200, 400]
+                        && $actualSleepMs instanceof Closure
+                        && $actualSleepMs(2) === 200;
+                })
+                ->once()
+                ->andReturnSelf()
+                ->getMock()
+        );
+
+        $this->mockService->shouldReceive('callService')
+            ->andReturn(jsonMockResponse(['ok' => true]));
+
+        phase3Controller()->handle($request);
     });
 
     it('passage_retry_* keys are stripped from guzzle options', function () {
