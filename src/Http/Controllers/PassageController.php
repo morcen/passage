@@ -166,7 +166,7 @@ class PassageController extends Controller
         $forwardedHeaders = ForwardedHeaderResolver::resolve($request);
 
         if ($cacheTtl !== null) {
-            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheTtl, $cacheableOptions, $request->query(), $forwardedHeaders);
+            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheableOptions, $request->query(), $forwardedHeaders);
             if ($cached !== null) {
                 $upstream = $handlerInstance->getResponse($request, $cached);
                 $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
