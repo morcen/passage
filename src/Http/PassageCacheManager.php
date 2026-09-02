@@ -13,7 +13,6 @@ class PassageCacheManager
      * Returns null on a cache miss, or if caching is not applicable.
      * (only GET and HEAD responses are cached).
      *
-     * @param  int  $ttl  Cache time-to-live in seconds.
      * @param  array  $options  Request options used to generate the cache key.
      * @param  array  $query  Request query parameters used to generate the cache key.
      * @param  array  $headers  Forwarded request headers used to generate the cache key, so
@@ -21,7 +20,7 @@ class PassageCacheManager
      *                          a cached response.
      * @return Response|null Cached response, or null on a miss.
      */
-    public function get(string $method, string $fullUrl, int $ttl, array $options, array $query = [], array $headers = []): ?Response
+    public function get(string $method, string $fullUrl, array $options, array $query = [], array $headers = []): ?Response
     {
         if (! $this->isCacheable($method)) {
             return null;
