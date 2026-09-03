@@ -528,7 +528,7 @@ protected $subscribe = [
 ];
 ```
 
-This subscriber logs to a `passage` channel at `info` level (request/response) and `error` level (failures).
+This subscriber logs to a `passage` channel at `debug` level for outgoing requests, `info` level for responses, and `error` level for failures.
 
 To disable events:
 
