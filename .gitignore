@@ -9,3 +9,8 @@ phpunit.xml
 testbench.yaml
 vendor
 node_modules
+
+# Working notes that should never land in a release commit
+/ISSUES.md
+/reddit.md
+/.claude
