@@ -39,8 +39,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Morcen\\Passage\\": "src",
-            "Morcen\\Passage\\Database\\Factories\\": "database/factories"
+            "Morcen\\Passage\\": "src"
         }
     },
     "autoload-dev": {
