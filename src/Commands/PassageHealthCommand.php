@@ -3,10 +3,8 @@
 namespace Morcen\Passage\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
-use Morcen\Passage\Http\Controllers\PassageController;
-use Morcen\Passage\PassageControllerInterface;
+use Morcen\Passage\Support\PassageRouteRegistry;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -18,6 +16,11 @@ class PassageHealthCommand extends Command
 
     public $description = 'Ping the base_uri of every registered Passage route and report connectivity.';
 
+    public function __construct(protected readonly PassageRouteRegistry $routeRegistry)
+    {
+        parent::__construct();
+    }
+
     public function handle(): int
     {
         if (! config('passage.enabled', true)) {
@@ -26,7 +29,7 @@ class PassageHealthCommand extends Command
             return self::SUCCESS;
         }
 
-        $routes = $this->passageRoutes();
+        $routes = $this->routeRegistry->routes();
 
         if ($routes->isEmpty()) {
             $this->warn('No Passage routes are registered.');
@@ -39,13 +42,13 @@ class PassageHealthCommand extends Command
         $anyFailed = false;
 
         foreach ($routes as $route) {
-            $handler = $route->defaults['_passage_handler'] ?? null;
+            $handler = $this->routeRegistry->handlerClassFor($route);
 
             if (! $handler) {
                 continue;
             }
 
-            if (! class_exists($handler) || ! is_subclass_of($handler, PassageControllerInterface::class)) {
+            if (! $this->routeRegistry->isValidHandler($handler)) {
                 $rows[] = [class_basename($handler), '—', '<fg=red>FAIL</>', 'Invalid or missing handler class'];
                 $anyFailed = true;
 
@@ -53,8 +56,8 @@ class PassageHealthCommand extends Command
             }
 
             try {
-                $handlerInstance = app($handler);
-                $options = array_merge(config('passage.options', []), $handlerInstance->getOptions());
+                $handlerInstance = $this->routeRegistry->resolveHandler($handler);
+                $options = $this->routeRegistry->optionsFor($handlerInstance);
             } catch (Throwable $e) {
                 $rows[] = [class_basename($handler), '—', '<fg=red>FAIL</>', 'Could not resolve handler: '.$e->getMessage()];
                 $anyFailed = true;
@@ -119,14 +122,5 @@ class PassageHealthCommand extends Command
         } catch (Throwable $e) {
             return [false, 0, $e->getMessage()];
         }
-    }
-
-    private function passageRoutes(): Collection
-    {
-        return collect(app('router')->getRoutes())
-            ->filter(fn ($route) => str_contains(
-                $route->getActionName(),
-                PassageController::class.'@handle'
-            ));
     }
 }

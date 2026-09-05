@@ -24,6 +24,7 @@ use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageHandler;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Morcen\Passage\Support\PassageRouteRegistry;
 use Symfony\Component\HttpFoundation\Response as ResponseCode;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -141,7 +142,7 @@ function phase3Controller(): PassageController
         new AllowedHostsGuard,
         new PassageCacheManager,
         new PassageErrorHandler,
-        app(),
+        new PassageRouteRegistry(app()),
     );
 }
 

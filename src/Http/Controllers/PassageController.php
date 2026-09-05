@@ -2,7 +2,6 @@
 
 namespace Morcen\Passage\Http\Controllers;
 
-use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -19,9 +18,9 @@ use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\PassageCacheManager;
 use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
-use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
 use Morcen\Passage\Support\ForwardedHeaderResolver;
+use Morcen\Passage\Support\PassageRouteRegistry;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -42,7 +41,7 @@ class PassageController extends Controller
         protected readonly AllowedHostsGuard $allowedHostsGuard,
         protected readonly PassageCacheManager $cacheManager,
         protected readonly PassageErrorHandler $errorHandler,
-        protected readonly Application $app,
+        protected readonly PassageRouteRegistry $routeRegistry,
     ) {}
 
     public function handle(Request $request): Response
@@ -51,13 +50,10 @@ class PassageController extends Controller
             return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $handler = $request->route()->defaults['_passage_handler'] ?? null;
+        $handler = $this->routeRegistry->handlerClassFor($request->route());
         $path = (string) $request->route('path', '');
 
-        if (! $handler
-            || ! class_exists($handler)
-            || ! is_subclass_of($handler, PassageControllerInterface::class)
-        ) {
+        if (! $this->routeRegistry->isValidHandler($handler)) {
             return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
         }
 
@@ -65,8 +61,8 @@ class PassageController extends Controller
             return response()->json(['error' => 'Invalid path'], Response::HTTP_BAD_REQUEST);
         }
 
-        $handlerInstance = $this->app->make($handler);
-        $mergedOptions = array_merge(config('passage.options', []), $handlerInstance->getOptions());
+        $handlerInstance = $this->routeRegistry->resolveHandler($handler);
+        $mergedOptions = $this->routeRegistry->optionsFor($handlerInstance);
 
         try {
             if (empty($mergedOptions['base_uri'])) {

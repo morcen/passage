@@ -17,6 +17,7 @@ use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
 use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
+use Morcen\Passage\Support\PassageRouteRegistry;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
@@ -170,7 +171,7 @@ beforeEach(function () {
         new AllowedHostsGuard,
         new PassageCacheManager,
         new PassageErrorHandler,
-        app(),
+        new PassageRouteRegistry(app()),
     );
 });
 
