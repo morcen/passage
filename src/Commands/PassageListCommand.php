@@ -3,9 +3,7 @@
 namespace Morcen\Passage\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Route;
-use Morcen\Passage\Http\Controllers\PassageController;
-use Morcen\Passage\PassageControllerInterface;
+use Morcen\Passage\Support\PassageRouteRegistry;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -15,6 +13,11 @@ class PassageListCommand extends Command
     public $signature = 'passage:list';
 
     public $description = 'List all registered Passage proxy routes.';
+
+    public function __construct(protected readonly PassageRouteRegistry $routeRegistry)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -26,13 +29,8 @@ class PassageListCommand extends Command
 
         $rows = [];
 
-        foreach (Route::getRoutes() as $route) {
-            $uses = $route->getAction('uses');
-            if (! is_string($uses) || ! str_contains($uses, PassageController::class.'@handle')) {
-                continue;
-            }
-
-            $handler = $route->defaults['_passage_handler'] ?? null;
+        foreach ($this->routeRegistry->routes() as $route) {
+            $handler = $this->routeRegistry->handlerClassFor($route);
             $rows[] = [
                 implode('|', $route->methods()),
                 $route->uri(),
@@ -53,13 +51,13 @@ class PassageListCommand extends Command
 
     private function resolveTarget(string $handler): string
     {
-        if (! class_exists($handler) || ! is_subclass_of($handler, PassageControllerInterface::class)) {
+        if (! $this->routeRegistry->isValidHandler($handler)) {
             return $handler;
         }
 
         try {
-            $instance = app($handler);
-            $options = $instance->getOptions();
+            $instance = $this->routeRegistry->resolveHandler($handler);
+            $options = $this->routeRegistry->optionsFor($instance);
         } catch (Throwable) {
             return $handler.' (could not resolve target)';
         }
