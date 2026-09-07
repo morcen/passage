@@ -2,6 +2,7 @@
 
 namespace Morcen\Passage\Http\Controllers;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -18,6 +19,7 @@ use Morcen\Passage\Guards\AllowedHostsGuard;
 use Morcen\Passage\Http\PassageCacheManager;
 use Morcen\Passage\Http\PassageErrorHandler;
 use Morcen\Passage\Http\PassageResponseBuilder;
+use Morcen\Passage\PassageControllerInterface;
 use Morcen\Passage\Services\PassageServiceInterface;
 use Morcen\Passage\Support\ForwardedHeaderResolver;
 use Morcen\Passage\Support\PassageRouteRegistry;
@@ -44,17 +46,23 @@ class PassageController extends Controller
         protected readonly PassageRouteRegistry $routeRegistry,
     ) {}
 
+    /**
+     * Handle an inbound Passage request.
+     *
+     * Each stage below either returns early (a client-facing Response, or an
+     * exception mapped to one) or hands prepared data to the next stage.
+     */
     public function handle(Request $request): Response
     {
         if (! config('passage.enabled', true)) {
-            return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
+            return $this->notFoundResponse();
         }
 
         $handler = $this->routeRegistry->handlerClassFor($request->route());
         $path = (string) $request->route('path', '');
 
         if (! $this->routeRegistry->isValidHandler($handler)) {
-            return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
+            return $this->notFoundResponse();
         }
 
         if ($this->containsDotSegment($path) || $this->containsSchemeOrAuthority($path)) {
@@ -64,6 +72,76 @@ class PassageController extends Controller
         $handlerInstance = $this->routeRegistry->resolveHandler($handler);
         $mergedOptions = $this->routeRegistry->optionsFor($handlerInstance);
 
+        if ($response = $this->guardUpstreamTarget($mergedOptions, $request, $handler)) {
+            return $response;
+        }
+
+        [$passageOptions, $guzzleOptions, $cacheableOptions] = $this->prepareGuzzleOptions($mergedOptions);
+        $pendingRequest = $this->buildPendingRequest($guzzleOptions, $passageOptions);
+
+        $this->stripSensitiveHeaders($request, $handlerInstance);
+
+        if ($response = $this->validateInboundRequest($request, $handlerInstance)) {
+            return $response;
+        }
+
+        try {
+            $request = $handlerInstance->getRequest($request);
+        } catch (PassageRequestAbortedException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->getHttpStatus());
+        }
+
+        // Streaming reads the upstream body as a lazy, single-pass PSR-7 stream (see the
+        // `stream => true` Guzzle option set in prepareGuzzleOptions()), so nothing else may
+        // consume that stream first. Caching is therefore disabled whenever streaming is
+        // enabled: a cache write would exhaust the stream before buildStreamedResponse() can
+        // read it, producing an empty/truncated response, and a cache hit would silently
+        // bypass streaming (and its getResponse() skip) for a response the handler asked to
+        // stream.
+        $isStreaming = ! empty($passageOptions['passage_streaming']);
+        $cacheTtl = $isStreaming ? null : ($passageOptions['passage_cache_ttl'] ?? null);
+        $fullUrl = rtrim($mergedOptions['base_uri'], '/').'/'.$path;
+        // Same headers PassageService forwards upstream, so a cache entry is never
+        // shared between requests that carry different credentials/identity.
+        $forwardedHeaders = ForwardedHeaderResolver::resolve($request);
+
+        if ($cacheTtl !== null) {
+            if ($response = $this->respondFromCache($request, $handlerInstance, $handler, $fullUrl, $cacheableOptions, $forwardedHeaders)) {
+                return $response;
+            }
+        }
+
+        $startedAt = microtime(true);
+        $this->fireEvent(new PassageRequestSending($request, $handler, $fullUrl, $startedAt));
+
+        try {
+            $upstream = $this->passageService->callService($request, $pendingRequest, $path);
+        } catch (DisallowedProxyTargetException $e) {
+            $durationMs = (microtime(true) - $startedAt) * 1000;
+
+            return $this->reportFailure($request, $handler, $e, $durationMs, Response::HTTP_FORBIDDEN, 'Upstream host is not permitted.');
+        } catch (Throwable $e) {
+            $durationMs = (microtime(true) - $startedAt) * 1000;
+            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
+
+            return $this->errorHandler->handle($e);
+        }
+
+        $durationMs = (microtime(true) - $startedAt) * 1000;
+
+        if ($cacheTtl !== null) {
+            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $cacheableOptions, $upstream, $request->query(), $forwardedHeaders);
+        }
+
+        return $this->buildFinalResponse($request, $upstream, $handler, $handlerInstance, $durationMs, $isStreaming);
+    }
+
+    /**
+     * Confirm the handler's base_uri is present and permitted, reporting and
+     * mapping any failure to a client-facing Response.
+     */
+    private function guardUpstreamTarget(array $mergedOptions, Request $request, string $handler): ?Response
+    {
         try {
             if (empty($mergedOptions['base_uri'])) {
                 throw new InvalidBaseUriException("Passage handler [{$handler}] must return a 'base_uri' from getOptions().");
@@ -71,16 +149,24 @@ class PassageController extends Controller
 
             $this->allowedHostsGuard->check($mergedOptions['base_uri']);
         } catch (InvalidBaseUriException $e) {
-            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, 0.0));
-
-            return response()->json(['error' => 'Upstream configuration error.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->reportFailure($request, $handler, $e, 0.0, Response::HTTP_INTERNAL_SERVER_ERROR, 'Upstream configuration error.');
         } catch (DisallowedProxyTargetException $e) {
-            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, 0.0));
-
-            return response()->json(['error' => 'Upstream host is not permitted.'], Response::HTTP_FORBIDDEN);
+            return $this->reportFailure($request, $handler, $e, 0.0, Response::HTTP_FORBIDDEN, 'Upstream host is not permitted.');
         }
 
-        // Extract Passage reserved keys before passing options to Guzzle.
+        return null;
+    }
+
+    /**
+     * Split merged options into Passage's own reserved keys and the Guzzle
+     * options that should reach the HTTP client, then apply the
+     * cache-key snapshot and redirect/streaming adjustments that only the
+     * latter should carry.
+     *
+     * @return array{0: array<string,mixed>, 1: array<string,mixed>, 2: array<string,mixed>}
+     */
+    private function prepareGuzzleOptions(array $mergedOptions): array
+    {
         [$passageOptions, $guzzleOptions] = $this->extractPassageOptions($mergedOptions);
 
         // Snapshot before the redirect guard below injects a Closure into
@@ -100,6 +186,15 @@ class PassageController extends Controller
             $guzzleOptions['stream'] = true;
         }
 
+        return [$passageOptions, $guzzleOptions, $cacheableOptions];
+    }
+
+    /**
+     * Build the outbound HTTP client, wiring up retry behaviour when the
+     * handler's options ask for it.
+     */
+    private function buildPendingRequest(array $guzzleOptions, array $passageOptions): PendingRequest
+    {
         $pendingRequest = Http::withOptions($guzzleOptions);
 
         if (isset($passageOptions['passage_retry_times'])) {
@@ -117,7 +212,14 @@ class PassageController extends Controller
             );
         }
 
-        // Strip sensitive client headers, but honour AcceptsClientHeaders overrides.
+        return $pendingRequest;
+    }
+
+    /**
+     * Strip sensitive client headers, honouring AcceptsClientHeaders overrides.
+     */
+    private function stripSensitiveHeaders(Request $request, PassageControllerInterface $handlerInstance): void
+    {
         $allowedClientHeaders = $handlerInstance instanceof AcceptsClientHeaders
             ? array_map('strtolower', $handlerInstance->allowedClientHeaders())
             : [];
@@ -127,73 +229,63 @@ class PassageController extends Controller
                 $request->headers->remove($header);
             }
         }
+    }
 
-        // Run validation before transformation if the handler declares rules.
-        if ($handlerInstance instanceof ValidatesInboundRequest) {
-            try {
-                $request->validate($handlerInstance->rules());
-            } catch (ValidationException $e) {
-                return response()->json([
-                    'error' => 'Validation failed.',
-                    'errors' => $e->errors(),
-                ], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
+    /**
+     * Run validation before transformation if the handler declares rules.
+     */
+    private function validateInboundRequest(Request $request, PassageControllerInterface $handlerInstance): ?Response
+    {
+        if (! $handlerInstance instanceof ValidatesInboundRequest) {
+            return null;
         }
 
         try {
-            $request = $handlerInstance->getRequest($request);
-        } catch (PassageRequestAbortedException $e) {
-            return response()->json(['error' => $e->getMessage()], $e->getHttpStatus());
+            $request->validate($handlerInstance->rules());
+        } catch (ValidationException $e) {
+            return response()->json([
+                'error' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // Streaming reads the upstream body as a lazy, single-pass PSR-7 stream (see the
-        // `stream => true` Guzzle option set above), so nothing else may consume that
-        // stream first. Caching is therefore disabled whenever streaming is enabled: a
-        // cache write would exhaust the stream before buildStreamedResponse() can read it,
-        // producing an empty/truncated response, and a cache hit would silently bypass
-        // streaming (and its getResponse() skip) for a response the handler asked to stream.
-        $isStreaming = ! empty($passageOptions['passage_streaming']);
+        return null;
+    }
 
-        // Check cache before making the upstream call.
-        $cacheTtl = $isStreaming ? null : ($passageOptions['passage_cache_ttl'] ?? null);
-        $fullUrl = rtrim($mergedOptions['base_uri'], '/').'/'.$path;
-        // Same headers PassageService forwards upstream, so a cache entry is never
-        // shared between requests that carry different credentials/identity.
-        $forwardedHeaders = ForwardedHeaderResolver::resolve($request);
+    /**
+     * Return the cached upstream response, transformed and event-fired like a
+     * live one, when the cache holds an entry for this request.
+     */
+    private function respondFromCache(Request $request, PassageControllerInterface $handlerInstance, string $handler, string $fullUrl, array $cacheableOptions, array $forwardedHeaders): ?Response
+    {
+        $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheableOptions, $request->query(), $forwardedHeaders);
 
-        if ($cacheTtl !== null) {
-            $cached = $this->cacheManager->get($request->method(), $fullUrl, $cacheableOptions, $request->query(), $forwardedHeaders);
-            if ($cached !== null) {
-                $upstream = $handlerInstance->getResponse($request, $cached);
-                $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
-
-                return $this->responseBuilder->build($upstream);
-            }
+        if ($cached === null) {
+            return null;
         }
 
-        $startedAt = microtime(true);
-        $this->fireEvent(new PassageRequestSending($request, $handler, $fullUrl, $startedAt));
+        $upstream = $handlerInstance->getResponse($request, $cached);
+        $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, 0.0, true));
 
-        try {
-            $upstream = $this->passageService->callService($request, $pendingRequest, $path);
-        } catch (DisallowedProxyTargetException $e) {
-            $durationMs = (microtime(true) - $startedAt) * 1000;
-            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
+        return $this->responseBuilder->build($upstream);
+    }
 
-            return response()->json(['error' => 'Upstream host is not permitted.'], Response::HTTP_FORBIDDEN);
-        } catch (Throwable $e) {
-            $durationMs = (microtime(true) - $startedAt) * 1000;
-            $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
+    /**
+     * Fire the failure event and map it to the given client-facing Response.
+     */
+    private function reportFailure(Request $request, string $handler, Throwable $e, float $durationMs, int $status, string $message): Response
+    {
+        $this->fireEvent(new PassageRequestFailed($request, $handler, $e, $durationMs));
 
-            return $this->errorHandler->handle($e);
-        }
+        return response()->json(['error' => $message], $status);
+    }
 
-        $durationMs = (microtime(true) - $startedAt) * 1000;
-
-        if ($cacheTtl !== null) {
-            $this->cacheManager->put($request->method(), $fullUrl, $cacheTtl, $cacheableOptions, $upstream, $request->query(), $forwardedHeaders);
-        }
-
+    /**
+     * Cache the upstream response (when applicable), fire the response event,
+     * and build the client-facing Response — streamed or buffered.
+     */
+    private function buildFinalResponse(Request $request, mixed $upstream, string $handler, PassageControllerInterface $handlerInstance, float $durationMs, bool $isStreaming): Response
+    {
         // Streaming: skip getResponse() hook and return directly.
         if ($isStreaming) {
             $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, $durationMs, false));
@@ -205,6 +297,11 @@ class PassageController extends Controller
         $this->fireEvent(new PassageResponseReceived($request, $upstream, $handler, $durationMs, false));
 
         return $this->responseBuilder->build($upstream);
+    }
+
+    private function notFoundResponse(): Response
+    {
+        return response()->json(['error' => 'Route not found'], Response::HTTP_NOT_FOUND);
     }
 
     /**
