@@ -571,46 +571,7 @@ v3.0.0 is a **breaking release**. If you are on v2 and are not ready to migrate,
 "morcen/passage": "^2.0"
 ```
 
-### What changed
-
-| v2 | v3 |
-|----|----|
-| `config/passage.php` `services` array | Removed — routes are defined in route files |
-| `Route::passage()` in `routes/web.php` | Removed — use `Passage::get/post/...` instead |
-| Array-based handlers (`['base_uri' => '...']`) | Removed — a handler class is always required |
-
-### Migration steps
-
-**1. Remove `Route::passage()` from your route files.**
-
-**2. For each entry in `config/passage.php` `services`:**
-
-If the entry was an array:
-```php
-// v2 config/passage.php
-'github' => ['base_uri' => 'https://api.github.com/'],
-```
-
-Create a handler class (or use `passage:controller`) and move `base_uri` into `getOptions()`:
-```php
-// v3 app/Http/Controllers/Passages/GithubPassageController.php
-public function getOptions(): array
-{
-    return ['base_uri' => 'https://api.github.com/'];
-}
-```
-
-If the entry was already a controller class, it can be reused as-is — just make sure it implements `PassageControllerInterface`.
-
-**3. Register routes in your route files:**
-```php
-// v3 routes/web.php
-use Morcen\Passage\Facades\Passage;
-
-Passage::get('github/{path?}', GithubPassageController::class);
-```
-
-**4. Remove the `services` key from `config/passage.php`** (or re-publish the config with `php artisan vendor:publish --tag=passage-config --force`).
+For the full migration guide — what changed and the step-by-step migration — see [UPGRADE.md](UPGRADE.md#upgrading-from-v2x-to-v30).
 
 ---
 
