@@ -22,6 +22,21 @@ class PassageService implements PassageServiceInterface
             $headers = array_merge($headers, ForwardedHeaderResolver::forwardedHeaders($request));
         }
 
+        $contentType = $request->header('Content-Type', '');
+
+        if (count($request->allFiles()) > 0 || str_contains(strtolower($contentType), 'multipart/form-data')) {
+            // The multipart branch below builds a brand new multipart body via
+            // attach(), and Guzzle generates its own random boundary for it and
+            // sets a matching Content-Type header — but only when no Content-Type
+            // header is already present on the request (see Guzzle\Client's
+            // "_conditional" header handling). Forwarding the client's original
+            // Content-Type here (with its own, different boundary) would win over
+            // Guzzle's, so the boundary declared in the header would never match
+            // the one actually used in the body, corrupting every multipart part
+            // for the upstream to parse.
+            unset($headers['Content-Type']);
+        }
+
         $service = $service->withHeaders($headers);
 
         if (in_array($method, ['get', 'head'])) {
@@ -38,8 +53,6 @@ class PassageService implements PassageServiceInterface
 
             return $this->dispatch($service, $method, $uri);
         }
-
-        $contentType = $request->header('Content-Type', '');
 
         // PHP consumes php://input while populating $_POST/$_FILES for
         // multipart/form-data requests, so getContent() is always empty for

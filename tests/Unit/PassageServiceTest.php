@@ -335,6 +335,33 @@ describe('PassageService::callService()', function () {
             expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
         });
 
+        it('excludes the client Content-Type header for a multipart request, so Guzzle can set its own boundary', function () {
+            // The attach()-built multipart body below gets a fresh, randomly
+            // generated boundary from Guzzle. Guzzle only sets a matching
+            // Content-Type header for it when none is already present on the
+            // request — forwarding the client's own Content-Type here (with its
+            // own, different boundary) would silently win instead, so the
+            // boundary declared in the header would never match the one the
+            // body actually uses, corrupting every multipart part for the
+            // upstream to parse.
+            $file = UploadedFile::fake()->create('avatar.png', 10, 'image/png');
+            $request = Request::create('/test', 'POST', server: [
+                'CONTENT_TYPE' => 'multipart/form-data; boundary=----ClientBoundary',
+            ]);
+            $request->files->set('avatar', $file);
+
+            $mockResponse = Mockery::mock(Response::class);
+            $pending = Mockery::mock(PendingRequest::class);
+            $pending->shouldReceive('withHeaders')
+                ->once()
+                ->withArgs(fn (array $headers) => ! array_key_exists('Content-Type', $headers))
+                ->andReturn($pending);
+            $pending->shouldReceive('attach')->once()->andReturn($pending);
+            $pending->shouldReceive('post')->once()->with('upload', [])->andReturn($mockResponse);
+
+            expect($this->service->callService($request, $pending, 'upload'))->toBe($mockResponse);
+        });
+
         it('forwards multiple files uploaded under the same field name without crashing', function () {
             $file1 = UploadedFile::fake()->create('one.txt', 5, 'text/plain');
             $file2 = UploadedFile::fake()->create('two.txt', 5, 'text/plain');
