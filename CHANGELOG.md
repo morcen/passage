@@ -2,7 +2,7 @@
 
 All notable changes to `passage` will be documented in this file.
 
-## v3.1.2 - 2026-08-29
+## v3.1.2 - 2026-10-10
 
 ### What's Changed
 
@@ -20,6 +20,19 @@ All notable changes to `passage` will be documented in this file.
 * fix: require stable composer dependencies instead of dev stability by @morcen in https://github.com/morcen/passage/pull/217
 * fix: add X-Forwarded-* headers to upstream requests by @morcen in https://github.com/morcen/passage/pull/218
 * test: cover passage:health probe() failure for unreachable hosts by @morcen in https://github.com/morcen/passage/pull/219
+* fix: make hop-by-hop header stripping non-configurable, matching its docs by @morcen in https://github.com/morcen/passage/pull/221
+* docs: add SECURITY.md so the linked security policy resolves by @morcen in https://github.com/morcen/passage/pull/222
+* fix: allow HasResilienceOptions::withRetry() to express Laravel's native backoff and jitter by @morcen in https://github.com/morcen/passage/pull/223
+* fix: remove unused $ttl parameter from PassageCacheManager::get() by @morcen in https://github.com/morcen/passage/pull/224
+* docs: add v3 changelog entries and remove hardcoded composer.json version by @morcen in https://github.com/morcen/passage/pull/225
+* docs: correct PassageEventSubscriber log level claim in README by @morcen in https://github.com/morcen/passage/pull/226
+* fix: remove stale spatie skeleton artifacts by @morcen in https://github.com/morcen/passage/pull/227
+* refactor: extract PassageRouteRegistry to deduplicate handler discovery by @morcen in https://github.com/morcen/passage/pull/228
+* docs: add CONTRIBUTING.md referenced by the README by @morcen in https://github.com/morcen/passage/pull/229
+* refactor: split PassageController::handle() into pipeline stages by @morcen in https://github.com/morcen/passage/pull/230
+* docs: point README's upgrade section at UPGRADE.md instead of duplicating it by @morcen in https://github.com/morcen/passage/pull/231
+* docs: update stale example placeholders in the bug report issue template by @morcen in https://github.com/morcen/passage/pull/232
+* fix: correct multipart boundary mismatch when forwarding file uploads by @morcen in https://github.com/morcen/passage/pull/233
 
 **Full Changelog**: https://github.com/morcen/passage/compare/v3.1.1...v3.1.2
 
