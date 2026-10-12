@@ -67,7 +67,8 @@
                     "PKSA-8qx3-n5y5-vvnd": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
                     "PKSA-q46n-4fdk-zjr4": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
                     "PKSA-qzrn-rnz3-85w1": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
-                    "PKSA-w7xr-vk7n-rstm": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers."
+                    "PKSA-w7xr-vk7n-rstm": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers.",
+                    "PKSA-d5tc-s1qs-h781": "See PKSA-m5cs-t1y6-qpcs: laravel/framework is dev-only tooling for this repo's Laravel 11.x/12.x test matrix, not shipped to consumers. Low-severity XSS in the debug page (CVE-2026-102279), published 2026-09-29."
                 }
             }
         }
